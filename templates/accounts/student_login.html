@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}学生登录{% endblock %}
+
+{% block content %}
+<div class="page-panel">
+  <h1 class="h3 mb-3">学生登录</h1>
+  <p class="text-secondary">姓名和学号登录业务将在后续阶段实现。当前页面仅作为入口占位。</p>
+  <form class="row g-3 placeholder-form">
+    <div class="col-md-6">
+      <label class="form-label">姓名</label>
+      <input class="form-control" type="text" disabled>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">学号</label>
+      <input class="form-control" type="text" disabled>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-primary" type="button" disabled>后续实现</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
