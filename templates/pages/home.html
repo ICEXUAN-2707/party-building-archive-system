@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 学院学生材料信息查询系统{% endblock %}
+
+{% block content %}
+<section class="py-4">
+  <div class="row align-items-center g-4">
+    <div class="col-lg-7">
+      <p class="text-uppercase text-primary fw-semibold small mb-2">Project foundation</p>
+      <h1 class="display-6 fw-semibold mb-3">学院学生材料信息查询系统</h1>
+      <p class="lead text-secondary mb-4">当前为项目骨架阶段，已提供模型、迁移、初始化命令和占位入口。</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-primary" href="{% url 'accounts:student_login' %}">学生查询入口</a>
+        <a class="btn btn-outline-primary" href="{% url 'students:admin_student_list' %}">管理员查询入口</a>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="surface p-4">
+        <h2 class="h5 mb-3">骨架阶段入口</h2>
+        <div class="list-group list-group-flush">
+          <a class="list-group-item px-0" href="{% url 'students:student_profile' %}">学生个人信息占位页</a>
+          <a class="list-group-item px-0" href="{% url 'imports:preview' %}">导入预览占位页</a>
+          <a class="list-group-item px-0" href="{% url 'imports:history' %}">导入历史占位页</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
