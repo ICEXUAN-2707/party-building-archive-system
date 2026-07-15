@@ -39,9 +39,11 @@ python --version
 2. 克隆仓库：
 
 ```powershell
-git clone <仓库地址>
+git clone <YOUR_REPOSITORY_URL>
 cd party-building-archive-system
 ```
+
+请将 `<YOUR_REPOSITORY_URL>` 替换为项目实际 Git 仓库地址。
 
 3. 创建虚拟环境：
 
@@ -166,7 +168,8 @@ python -m pip install -r requirements.txt
 ## Git 协作提醒
 
 - 不提交 `.env`、`db.sqlite3`、真实 Excel、真实学生数据、上传文件、虚拟环境目录。
-- 当前分支用于项目骨架开发。
+- Sprint 0 项目骨架正式开发分支为 `feature/project-foundation`。
+- Git 协作规范见 `docs/02_git_workflow.md`。
 - 提交前运行 `python manage.py test`。
 
 ## 未来 Docker 方向

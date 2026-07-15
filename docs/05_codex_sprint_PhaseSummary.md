@@ -6,9 +6,9 @@ docs/spec.md
 
 AGENTS.md
 
-docs/development_plan.md
+docs/01_development_plan.md
 
-docs/project_status.md
+docs/reviews/sprint0_review.md
 
 
 请审查当前项目状态。

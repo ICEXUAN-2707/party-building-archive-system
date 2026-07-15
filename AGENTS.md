@@ -22,6 +22,12 @@ docs/spec.md
 
 在修改代码前，必须先阅读该文件。
 
+Git协作规范见：
+
+```text
+docs/02_git_workflow.md
+```
+
 ---
 
 ## 2. 当前开发阶段
@@ -35,6 +41,12 @@ docs/spec.md
 本阶段目标是建立可运行、可测试、适合7人协作开发的Django项目基础。
 
 本阶段不是完整产品开发阶段。
+
+当前项目骨架正式开发分支为：
+
+```text
+feature/project-foundation
+```
 
 当前应完成：
 

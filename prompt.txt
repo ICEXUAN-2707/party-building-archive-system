@@ -1,0 +1,172 @@
+你现在负责完成“学院学生材料信息查询系统”Sprint 0基线修正。
+
+请先阅读：
+
+* `AGENTS.md`
+* `docs/spec.md`
+* 当前Git工作区
+* 当前所有docs目录文件
+* README
+* Sprint 0已有测试
+
+## 一、任务目标
+
+根据Sprint 0审查结果，消除文档、分支命名和模型规则中的剩余歧义，为项目骨架合入`develop`做好准备。
+
+当前正式开发分支冻结为：
+
+```text
+feature/project-foundation
+```
+
+请不要切换分支，不要执行任何Git提交、推送、合并、重置或变基操作。
+
+## 二、需要完成的事项
+
+### 1. 建立Sprint 0范围冻结说明
+
+新增：
+
+```text
+docs/01_scope_freeze.md
+```
+
+说明：
+
+* Sprint 0允许实现内容；
+* Sprint 0禁止提前实现内容；
+* 冻结模型和枚举；
+* 分支名称；
+* 变更审批规则。
+
+内容应与`docs/spec.md`和`AGENTS.md`一致，不新增业务规则。
+
+### 2. 统一Git规范文件
+
+当前可能存在：
+
+```text
+docs/Git操作指南.md
+docs/02_git_workflow.md
+```
+
+请比较内容，将有效信息合并到：
+
+```text
+docs/02_git_workflow.md
+```
+
+删除重复的旧文件。
+
+更新README、AGENTS及其他文档中的相关引用。
+
+正式项目骨架分支名称统一为：
+
+```text
+feature/project-foundation
+```
+
+清除文档中的：
+
+```text
+feature/foundation
+```
+
+### 3. 冻结学号唯一规则
+
+检查`Student.student_number`当前实现。
+
+正式规则确定为：
+
+* 学号在系统内全局唯一；
+* 学号不作为数据库主键；
+* 数据库仍使用自动生成的`id`；
+* 学生登录使用姓名＋学号联合校验；
+* 同一学号对应不同姓名视为数据冲突。
+
+请更新`docs/spec.md`、数据字典或相关说明，使文档与当前`unique=True`实现一致。
+
+若当前代码已符合该规则，不要无意义修改模型或重新生成迁移。
+
+### 4. 补充README
+
+检查README中的仓库克隆说明。
+
+如果仓库地址未知，使用：
+
+```text
+<YOUR_REPOSITORY_URL>
+```
+
+并明确说明需要替换。
+
+不得虚构仓库地址。
+
+### 5. 新增Sprint 0 Review记录
+
+新增：
+
+```text
+docs/reviews/sprint0_review.md
+```
+
+记录：
+
+* 审查范围；
+* 当前分支；
+* 检查命令；
+* 检查结果；
+* 本轮修复事项；
+* 遗留风险；
+* 是否允许合入develop。
+
+测试结果必须根据实际执行填写，不得虚构。
+
+## 三、修改限制
+
+不得：
+
+* 完整实现学生登录；
+* 完整实现Excel解析；
+* 完整实现导入或回滚；
+* 修改冻结技术栈；
+* 重构整个项目；
+* 删除有效迁移；
+* 修改与本轮问题无关的业务代码；
+* 创建无必要的新数据库迁移；
+* 执行Git命令改变仓库历史。
+
+## 四、验证要求
+
+完成后运行：
+
+```bash
+python manage.py check
+python manage.py makemigrations --check
+python manage.py migrate
+python manage.py test
+```
+
+同时检查：
+
+* 文档中不再出现`feature/foundation`；
+* Git规范只保留一个正式文件；
+* Spec与模型的学号唯一规则一致；
+* Sprint 0 Review记录已创建；
+* 没有新增未解释的迁移；
+* 没有提交敏感数据。
+
+## 五、最终输出
+
+请输出：
+
+1. 修改和删除的文件；
+2. 每项审查问题的解决方式；
+3. 是否修改了代码或数据库模型；
+4. 是否产生新迁移；
+5. 实际运行的命令；
+6. 测试结果；
+7. 仍存在的风险；
+8. 是否建议创建`feature/project-foundation → develop`的PR。
+
+不要执行Git提交或推送。

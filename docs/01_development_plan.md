@@ -112,12 +112,12 @@ AI负责：
 ### Sprint 0任务列表
 | 任务 | 负责人 | 分支 | 依赖 |
 |------|--------|------|------|
-| 项目初始化 | 技术架构 | feature/foundation | 无 |
+| 项目初始化 | 技术架构 | feature/project-foundation | 无 |
 | Spec需求文档整理 | 组长 | develop | 无 |
 | AGENTS环境建立 | 组长 | develop | 无 |
-| 数据库模型开发 | 架构 | feature/foundation | Spec文档完成 |
+| 数据库模型开发 | 架构 | feature/project-foundation | Spec文档完成 |
 | Git协作规范落地 | 组长 | develop | 无 |
-| 项目README文档 | 架构 | feature/foundation | 项目基础结构完成 |
+| 项目README文档 | 架构 | feature/project-foundation | 项目基础结构完成 |
 
 ### Sprint 0验收标准
 #### 技术校验（必须全部通过）
@@ -345,7 +345,7 @@ Git Flow完整流程、Django整体架构、数据库模型设计、标准化Cod
 
 ## 成员2：技术架构负责人
 ### 开发分支
-feature/foundation
+feature/project-foundation
 ### 核心目标
 搭建项目底层通用技术底座
 ### 任务
