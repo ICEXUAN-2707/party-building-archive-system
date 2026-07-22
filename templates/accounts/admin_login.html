@@ -3,9 +3,50 @@
 {% block title %}管理员登录{% endblock %}
 
 {% block content %}
-<div class="page-panel">
-  <h1 class="h3 mb-3">管理员登录</h1>
-  <p class="text-secondary">管理员认证基础已接入 Django Admin，自定义业务登录页将在后续阶段实现。</p>
-  <a class="btn btn-primary" href="/admin/">进入 Django Admin</a>
+<div class="row justify-content-center">
+  <div class="col-md-5 col-lg-4">
+    <div class="page-panel">
+      <h1 class="h3 mb-1">管理员登录</h1>
+      <p class="text-secondary small mb-4">使用业务管理账号登录查询后台</p>
+
+      {% if form.errors %}
+      <div class="alert alert-danger py-2 small">
+        用户名或密码错误，请重试。
+      </div>
+      {% endif %}
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="mb-3">
+          <label for="{{ form.username.id_for_label }}" class="form-label">用户名</label>
+          <input
+            type="text"
+            name="{{ form.username.name }}"
+            id="{{ form.username.id_for_label }}"
+            class="form-control"
+            autocomplete="username"
+            autofocus
+            required
+          >
+        </div>
+        <div class="mb-4">
+          <label for="{{ form.password.id_for_label }}" class="form-label">密码</label>
+          <input
+            type="password"
+            name="{{ form.password.name }}"
+            id="{{ form.password.id_for_label }}"
+            class="form-control"
+            autocomplete="current-password"
+            required
+          >
+        </div>
+        <button type="submit" class="btn btn-primary w-100">登录管理后台</button>
+      </form>
+
+      <p class="text-secondary small mt-3 mb-0 text-center">
+        Django 管理入口见 <a href="/admin/">/admin/</a>
+      </p>
+    </div>
+  </div>
 </div>
 {% endblock %}

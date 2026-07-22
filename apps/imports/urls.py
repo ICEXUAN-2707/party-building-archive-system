@@ -1,10 +1,11 @@
 from django.urls import path
-from django.views.generic import TemplateView
+
+from .views import HistoryView, PreviewView, UploadView
 
 app_name = "imports"
 
 urlpatterns = [
-    path("upload/", TemplateView.as_view(template_name="imports/upload.html"), name="upload"),
-    path("preview/", TemplateView.as_view(template_name="imports/preview.html"), name="preview"),
-    path("history/", TemplateView.as_view(template_name="imports/history.html"), name="history"),
+    path("upload/", UploadView.as_view(), name="upload"),
+    path("preview/", PreviewView.as_view(), name="preview"),
+    path("history/", HistoryView.as_view(), name="history"),
 ]

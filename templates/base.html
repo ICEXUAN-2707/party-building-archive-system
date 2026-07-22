@@ -18,8 +18,14 @@
       <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav ms-auto">
           <li class="nav-item"><a class="nav-link" href="{% url 'accounts:student_login' %}">学生登录</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'accounts:admin_login' %}">管理员登录</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'imports:upload' %}">Excel上传</a></li>
+          {% if user.is_authenticated %}
+            {% if user.role == 'data_admin' %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'imports:upload' %}">Excel上传</a></li>
+            {% endif %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'accounts:admin_logout' %}">退出</a></li>
+          {% else %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'accounts:admin_login' %}">管理员登录</a></li>
+          {% endif %}
           <li class="nav-item"><a class="nav-link" href="/admin/">Django Admin</a></li>
         </ul>
       </div>
