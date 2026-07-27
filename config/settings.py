@@ -1,12 +1,14 @@
 """Project settings for the student material archive system."""
 
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def env(name: str, default: str = "") -> str:
-    return _ENV.get(name, default)
+    """按“系统环境变量 > .env > 默认值”的顺序读取配置。"""
+    return os.environ.get(name, _ENV_FILE_VALUES.get(name, default))
 
 
 def env_bool(name: str, default: bool = False) -> bool:
@@ -19,9 +21,10 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
-def load_dotenv() -> dict[str, str]:
+def load_dotenv(env_file: Path | None = None) -> dict[str, str]:
+    """读取简单 KEY=VALUE 格式的 .env，供Windows本地开发使用。"""
     values: dict[str, str] = {}
-    env_file = BASE_DIR / ".env"
+    env_file = env_file or BASE_DIR / ".env"
     if not env_file.exists():
         return values
     for line in env_file.read_text(encoding="utf-8").splitlines():
@@ -33,7 +36,7 @@ def load_dotenv() -> dict[str, str]:
     return values
 
 
-_ENV = load_dotenv()
+_ENV_FILE_VALUES = load_dotenv()
 
 SECRET_KEY = env("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", True)
