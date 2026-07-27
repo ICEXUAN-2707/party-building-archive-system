@@ -62,10 +62,10 @@ SCAN_TOP_LEVEL_NAMES: frozenset[str] = frozenset(
 )
 
 ABSOLUTE_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]"),
-    re.compile(r"file:///"),
-    re.compile(r"/Users/[^/\s]+/"),
-    re.compile(r"/home/[^/\s]+/"),
+    re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[\\/]"),  # ci-guard: allow-absolute-path
+    re.compile(r"file:///"),  # ci-guard: allow-absolute-path
+    re.compile(r"/Users/[^/\s]+/"),  # ci-guard: allow-absolute-path
+    re.compile(r"/home/[^/\s]+/"),  # ci-guard: allow-absolute-path
 )
 
 IGNORED_DIRECTORY_NAMES: frozenset[str] = frozenset(
@@ -172,6 +172,8 @@ def find_absolute_paths(root: Path, tracked_files: Iterable[str]) -> list[Proble
         except UnicodeDecodeError:
             continue
         for line_number, line in enumerate(lines, start=1):
+            if "ci-guard: allow-absolute-path" in line:
+                continue
             if any(pattern.search(line) for pattern in ABSOLUTE_PATH_PATTERNS):
                 problems.append(
                     Problem(

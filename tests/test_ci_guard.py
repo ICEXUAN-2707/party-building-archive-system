@@ -68,7 +68,7 @@ class AbsolutePathGuardTests(SimpleTestCase):
             docs_dir.mkdir()
             note = docs_dir / "note.md"
             note.write_text(
-                "relative/path\nC:\\Users\\Developer\\project\\file.py\n",
+                "relative/path\nC:\\Users\\Developer\\project\\file.py\n",  # ci-guard: allow-absolute-path
                 encoding="utf-8",
             )
 
