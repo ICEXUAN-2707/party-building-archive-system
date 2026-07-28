@@ -71,7 +71,7 @@ apps/imports/
 
 # 4. 解析主接口（成员七调用入口）
 
-所有接口位于 [apps.imports.parser](file:///c:/Users/HUAWEI/Desktop/party-building-archive-system/apps/imports/parser.py)：
+所有接口位于 [apps.imports.parser](../../apps/imports/parser.py)：
 
 ### 4.1 单张工作表级解析
 
@@ -114,7 +114,7 @@ from apps.imports.report_column_utils import parse_report_sequence  # 第X次思
 
 # 5. 结果结构（datatypes）
 
-所有结构定义在 [apps.imports.datatypes](file:///c:/Users/HUAWEI/Desktop/party-building-archive-system/apps/imports/datatypes.py)：
+所有结构定义在 [apps.imports.datatypes](../../apps/imports/datatypes.py)：
 
 | 结构 | 说明 |
 |---|---|
@@ -131,7 +131,7 @@ from apps.imports.report_column_utils import parse_report_sequence  # 第X次思
 
 # 6. 支持的日期格式（5 种；其余一律报错，不做模糊猜测）
 
-统一入口：[parse_date](file:///c:/Users/HUAWEI/Desktop/party-building-archive-system/apps/imports/date_utils.py#L90)。返回 `DateParseResult(value: date | None, ok, error_code, error_message, source_value)`。
+统一入口：[parse_date](../../apps/imports/date_utils.py#L90)。返回 `DateParseResult(value: date | None, ok, error_code, error_message, source_value)`。
 
 | # | 格式 | 示例 |
 |---|---|---|
@@ -153,7 +153,7 @@ from apps.imports.report_column_utils import parse_report_sequence  # 第X次思
 
 # 7. 错误码和警告码
 
-全部集中登记在 [apps.imports.error_codes](file:///c:/Users/HUAWEI/Desktop/party-building-archive-system/apps/imports/error_codes.py)，并暴露 `ERROR_MESSAGES / WARNING_MESSAGES` 字典做国际化/UI 翻译。
+全部集中登记在 [apps.imports.error_codes](../../apps/imports/error_codes.py)，并暴露 `ERROR_MESSAGES / WARNING_MESSAGES` 字典做国际化/UI 翻译。
 
 **7.1 错误码（触发该行/该表不进入 valid_rows）**
 
@@ -190,7 +190,7 @@ from apps.imports.report_column_utils import parse_report_sequence  # 第X次思
 
 # 8. 列错位检测 & 禁止自动修复
 
-位于 [parser.py](file:///c:/Users/HUAWEI/Desktop/party-building-archive-system/apps/imports/parser.py) 的 `detect_column_shift(row_values, mapping)`。
+位于 [parser.py](../../apps/imports/parser.py) 的 `detect_column_shift(row_values, mapping)`。
 
 启发式信号有四类，命中≥2条 → 产生 `ERROR_ROW_COLUMN_SHIFT_SUSPECTED` 并跳过整行：
 1. 姓名列为空，但右邻列疑似姓名（2~4 个纯汉字 CJK Unified Ideographs）
