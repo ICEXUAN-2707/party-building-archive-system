@@ -21,7 +21,6 @@ def logout(request):
     return redirect("accounts:student_login")
 
 
-# 新增缺失的学生主页视图 student_profile
 def student_profile(request):
     student_id = request.session.get("student_id")
     if not student_id:
