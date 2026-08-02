@@ -1,6 +1,6 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from students.models import Student
+from .models import Student
 from .decorators import student_login_required
 
 def student_login(request):
