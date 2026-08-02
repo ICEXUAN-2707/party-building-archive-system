@@ -10,7 +10,6 @@ def student_login(request):
         student = Student.objects.filter(name=name, student_number=stu_num).first()
         if student:
             request.session["student_id"] = student.id
-            # 修复路由名称匹配
             return redirect("students:student_profile")
         else:
             messages.error(request, "姓名或学号不匹配，请检查后重新输入")
@@ -20,3 +19,13 @@ def student_login(request):
 def logout(request):
     request.session.flush()
     return redirect("accounts:student_login")
+
+
+# 新增缺失的学生主页视图 student_profile
+def student_profile(request):
+    student_id = request.session.get("student_id")
+    if not student_id:
+        return redirect("accounts:student_login")
+
+    student = Student.objects.get(id=student_id)
+    return render(request, "students/profile.html", {"student": student})
