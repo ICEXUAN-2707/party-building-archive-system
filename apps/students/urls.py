@@ -1,8 +1,11 @@
 from django.urls import path
 from . import views
 
-app_name = "accounts"
+# 修复：students模块命名空间必须为 students
+app_name = "students"
+
 urlpatterns = [
-    path("login/", views.student_login, name="student_login"),
-    path("logout/", views.logout, name="logout"),
+    path("me/", views.student_profile, name="student_profile"),
+    path("admin/students/", views.admin_student_list, name="admin_student_list"),
+    path("admin/students/<int:pk>/", views.admin_student_detail, name="admin_student_detail"),
 ]

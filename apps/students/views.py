@@ -10,7 +10,8 @@ def student_login(request):
         student = Student.objects.filter(name=name, student_number=stu_num).first()
         if student:
             request.session["student_id"] = student.id
-            return redirect("students:profile")
+            # 修复路由名称匹配
+            return redirect("students:student_profile")
         else:
             messages.error(request, "姓名或学号不匹配，请检查后重新输入")
     return render(request, "accounts/login.html")
