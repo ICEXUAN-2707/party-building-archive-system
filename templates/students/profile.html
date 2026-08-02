@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center mb-4">个人党务材料信息</h2>
+    <hr>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-primary text-white">基础身份信息</div>
+        <div class="card-body">
+            <p class="fs-5"><strong>姓名：</strong>{{ student.name }}</p>
+            <p class="fs-5"><strong>学号：</strong>{{ student.student_number }}</p>
+            <p class="fs-5"><strong>所属支部：</strong>{{ student.branch.name }}</p>
+            <p class="fs-5">
+                <strong>发展阶段：</strong>
+                {% if student.development_stage == "ACTIVIST" %}入党积极分子
+                {% elif student.development_stage == "PROBATIONARY" %}中共预备党员
+                {% elif student.development_stage == "FULL_MEMBER" %}正式党员
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-secondary text-white">申请入党时间</div>
+        <div class="card-body fs-5">
+            {% if application and application.applied_at %}
+                申请入党时间：{{ application.applied_at|date:"Y年m月d日" }}
+            {% else %}
+                申请入党时间：暂无记录
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-success text-white">思想汇报记录</div>
+        <div class="card-body">
+            <p class="fs-5"><strong>思想汇报总篇数：</strong>{{ report_count }}篇</p>
+            <h5 class="mt-3">提交时间明细</h5>
+            <hr>
+            {% if report_list %}
+                {% for report in report_list %}
+                    <p class="fs-6">第{{ forloop.counter }}篇：{{ report.submitted_at|date:"Y年m月d日" }}</p>
+                {% endfor %}
+            {% else %}
+                <p class="text-muted">暂无提交时间记录</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="alert alert-secondary mt-4">
+        如发现个人信息或材料记录有误，请联系学院相关负责老师线下核实。系统数据按周期更新，请以页面显示的最近更新时间为准。
+    </div>
+
+    <div class="mt-4">
+        <a href="{% url 'accounts:logout' %}" class="btn btn-danger">退出登录</a>
+    </div>
+</div>
+{% endblock %}
