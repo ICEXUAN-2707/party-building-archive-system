@@ -25,6 +25,15 @@ def student_profile(request):
     student_id = request.session.get("student_id")
     if not student_id:
         return redirect("accounts:student_login")
-
     student = Student.objects.get(id=student_id)
     return render(request, "students/profile.html", {"student": student})
+
+
+# 新增占位视图，满足测试路由解析
+def admin_student_list(request):
+    return render(request, "students/admin_student_list.html")
+
+
+def admin_student_detail(request, pk):
+    student = Student.objects.get(pk=pk)
+    return render(request, "students/admin_student_detail.html", {"student": student})
