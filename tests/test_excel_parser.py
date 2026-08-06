@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+from pathlib import Path
 
 from django.test import SimpleTestCase
 
@@ -21,6 +22,7 @@ from apps.imports.report_column_utils import (
     ERROR_REPORT_COLUMN_INVALID_CHINESE,
 )
 
+from apps.imports import error_codes
 from apps.imports.parser import (
     ColumnMapping,
     ERROR_HEADER_NOT_FOUND,
@@ -28,6 +30,7 @@ from apps.imports.parser import (
     ERROR_ROW_INVALID_APPLIED_DATE,
     ERROR_ROW_INVALID_STAGE,
     ERROR_ROW_MISSING_REQUIRED,
+    ERROR_UNKNOWN_SHEET,
     HeaderParseResult,
     ParseError,
     ReportColumn,
@@ -40,6 +43,7 @@ from apps.imports.parser import (
     parse_header_row,
     parse_sheet_rows,
     parse_student_row,
+    parse_workbook,
 )
 
 
@@ -555,8 +559,9 @@ class ParserStudentRowWarningTests(SimpleTestCase):
         row = ["20231002", "孙八", "中共预备党员", "2025/02/01", "", "2025/06/01"]
         outcome = parse_student_row(row, mapping, "支部", 3)
         self.assertIsNotNone(outcome.student_row)
+        # 缺总篇数列的警告现在是工作表级别（在 parse_workbook 中生成），行级别不再产生
         warning_codes = {w.code for w in outcome.warnings}
-        self.assertIn(WARNING_REPORT_TOTAL_COLUMN_MISSING, warning_codes)
+        self.assertNotIn(WARNING_REPORT_TOTAL_COLUMN_MISSING, warning_codes)
 
     def test_empty_report_dates_skipped_without_error_or_item(self) -> None:
         mapping = self._mapping(include_total_column=True)
@@ -960,100 +965,46 @@ def _append_sheet(wb, *, title: str, header_row2: list, data_rows: list[list]):
     return ws
 
 
-def _load_row2_and_data(xlsx_path: str, sheet_title: str) -> tuple[list, list]:
-    """
-    按照业务约定：前两行为表头；第二行是字段名；第三行开始为数据。
-    返回 (row2_values, data_rows_as_list)
-    """
-    from openpyxl import load_workbook
-
-    wb = load_workbook(xlsx_path, data_only=True, read_only=False)
-    try:
-        ws = wb[sheet_title]
-        rows_iter = ws.iter_rows(values_only=True)
-        rows_list = [list(r) for r in rows_iter]
-    finally:
-        wb.close()
-    if len(rows_list) < 2:
-        return [], []
-    row2 = rows_list[1]
-    data = rows_list[2:]
-    return row2, data
-
-
-KNOWN_BRANCHES: dict[str, tuple[str, str]] = {
-    "明理党支部": ("MINGLI", "明理党支部"),
-    "德理党支部": ("DELI", "德理党支部"),
-    "惟理党支部": ("WEILI", "惟理党支部"),
-}
-
-
-def _drive_sheet_parse(xlsx_path: str, sheet_title: str, errors_out: list, warnings_out: list):
-    """
-    用于集成测试的简化驱动：读 1 张表 → 产出 ParsedStudentRow 列表 / 错误列表 / 警告列表。
-    不写数据库。
-    """
-    if sheet_title in KNOWN_BRANCHES:
-        code, name = KNOWN_BRANCHES[sheet_title]
-    else:
-        code, name = None, None
-        errors_out.append(
-            ParseError(
-                code="UNKNOWN_SHEET",
-                message=f"工作表名称未登记在九个党支部映射表中：{sheet_title}",
-                sheet_name=sheet_title,
-                excel_row_number=1,
-                student_name="",
-                student_number="",
-                field_name="sheet",
-                source_value=sheet_title,
-            )
-        )
-        # 未知工作表：继续按通用逻辑解析，但记录 UNKNOWN_SHEET
-        code, name = "", sheet_title
-
-    row2, data = _load_row2_and_data(xlsx_path, sheet_title)
-    header_result = parse_header_row(row2)
-    if not header_result.ok:
-        errors_out.append(
-            ParseError(
-                code=header_result.error_code or ERROR_HEADER_NOT_FOUND,
-                message=header_result.error_message or "表头解析失败",
-                sheet_name=sheet_title,
-                excel_row_number=2,
-                student_name="",
-                student_number="",
-                field_name="header",
-                source_value=" | ".join(str(c) for c in row2),
-            )
-        )
-        return []
-
-    mapping = header_result.mapping
-    sheet_parse = parse_sheet_rows(
-        data_rows=data,
-        mapping=mapping,
-        sheet_name=sheet_title,
-        start_excel_row_number=3,
-    )
-    # 将 sheet 级结果回填到输出列表
-    errors_out.extend(sheet_parse.errors)
-    warnings_out.extend(sheet_parse.warnings)
-    # 已知党支部：回填 branch_code / branch_name 到学生行（纯解析层数据修正，不写库）
-    for row in sheet_parse.valid_rows:
-        row.branch_code = code or ""
-        row.branch_name = name or sheet_title
-    return sheet_parse.valid_rows
-
 
 class OpenpyxlIntegrationTests(SimpleTestCase):
     """
-    使用 openpyxl 动态创建 .xlsx 临时文件，覆盖任务 6-7 要求的 16 个场景。
-    每个场景结束由 setUpClass / tearDownClass / with 块确保清理临时文件。
+    使用 openpyxl 动态创建 .xlsx 临时文件，直接调用 parse_workbook() 进行端到端解析测试。
+    覆盖 11 个集成场景。
     """
 
-    # ------------------------- 场景 1：正常多工作表解析 -------------------------
-    def test_scenario_01_normal_multi_sheet(self) -> None:
+    # ------------------------- 场景 1：九个支部全部识别 -------------------------
+    def test_scenario_01_all_nine_branches(self) -> None:
+        with _MiniWorkbook() as twb:
+            branch_map = {
+                "明理党支部": "MINGLI",
+                "德理党支部": "DELI",
+                "惟理党支部": "WEILI",
+                "求理党支部": "QIULI",
+                "知理党支部": "ZHILI",
+                "昭理党支部": "ZHAOLI",
+                "学理党支部": "XUELI",
+                "博理党支部": "BOLI",
+                "艺理党支部": "YILI",
+            }
+            for title in branch_map:
+                _append_sheet(
+                    twb.workbook,
+                    title=title,
+                    header_row2=_standard_header_row2(),
+                    data_rows=[
+                        ["20230001", "测试同学", "正式党员", "", "2025/01/10", 1, "2025/03/01", None, None],
+                    ],
+                )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(result.total_sheets, 9)
+            self.assertEqual(len(result.valid_rows), 9)
+            actual_codes = {r.branch_code for r in result.valid_rows}
+            self.assertEqual(actual_codes, set(branch_map.values()))
+
+    # ------------------------- 场景 2：多工作表结果和统计聚合 -------------------------
+    def test_scenario_02_multi_sheet_aggregation(self) -> None:
         with _MiniWorkbook() as twb:
             _append_sheet(
                 twb.workbook,
@@ -1074,380 +1025,223 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
             )
             twb.workbook.save(twb.path)
 
-            errors: list = []
-            warnings: list = []
-            rows_a = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            rows_b = _drive_sheet_parse(twb.path, "德理党支部", errors, warnings)
-            self.assertEqual(len(rows_a), 2)
-            self.assertEqual(len(rows_b), 1)
-            self.assertEqual(rows_a[0].branch_code, "MINGLI")
-            self.assertEqual(rows_b[0].branch_name, "德理党支部")
-            self.assertEqual(rows_a[0].name, "赵甲")
-            self.assertEqual(rows_a[1].student_number, "20230102")
-            self.assertEqual(rows_b[0].development_stage, "ACTIVIST")
-            self.assertFalse(any(e.code == "UNKNOWN_SHEET" for e in errors))
-            self.assertFalse(any(e.code == ERROR_HEADER_NOT_FOUND for e in errors))
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(result.total_sheets, 2)
+            self.assertEqual(result.success_sheets, 2)
+            self.assertEqual(result.failed_sheets, 0)
+            self.assertEqual(result.total_rows, 3)
+            self.assertEqual(result.success_rows, 3)
+            self.assertEqual(len(result.valid_rows), 3)
+            self.assertEqual(len(result.sheet_results), 2)
+            mingli = next(s for s in result.sheet_results if s.sheet_name == "明理党支部")
+            self.assertEqual(mingli.status, "success")
+            self.assertEqual(mingli.total_rows, 2)
+            self.assertEqual(mingli.valid_row_count, 2)
+            deli = next(s for s in result.sheet_results if s.sheet_name == "德理党支部")
+            self.assertEqual(deli.status, "success")
+            self.assertEqual(deli.total_rows, 1)
+            self.assertEqual(deli.valid_row_count, 1)
 
-    # ------------------------- 场景 2：未知工作表记录 UNKNOWN_SHEET -------------------------
-    def test_scenario_02_unknown_sheet(self) -> None:
+    # ------------------------- 场景 3：单个工作表失败不阻止其他表进入结果 -------------------------
+    def test_scenario_03_single_sheet_failure_doesnt_block_others(self) -> None:
+        with _MiniWorkbook() as twb:
+            _append_sheet(
+                twb.workbook,
+                title="明理党支部",
+                header_row2=["序号", "备注", "日期"],
+                data_rows=[["1", "备注内容", "2025/01/10"]],
+            )
+            _append_sheet(
+                twb.workbook,
+                title="德理党支部",
+                header_row2=_standard_header_row2(),
+                data_rows=[
+                    ["20230201", "孙丙", "正式党员", "", "2025/01/10", 1, "2025/03/01", None, None],
+                ],
+            )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(result.total_sheets, 2)
+            self.assertEqual(result.success_sheets, 1)
+            self.assertEqual(result.failed_sheets, 1)
+            mingli = next(s for s in result.sheet_results if s.sheet_name == "明理党支部")
+            self.assertEqual(mingli.status, "failed")
+            self.assertEqual(mingli.valid_row_count, 0)
+            deli = next(s for s in result.sheet_results if s.sheet_name == "德理党支部")
+            self.assertEqual(deli.status, "success")
+            self.assertEqual(deli.valid_row_count, 1)
+            self.assertEqual(len(result.valid_rows), 1)
+            self.assertEqual(result.valid_rows[0].name, "孙丙")
+            self.assertEqual(result.valid_rows[0].branch_code, "DELI")
+            self.assertTrue(
+                any(e.code == ERROR_HEADER_NOT_FOUND for e in result.errors)
+            )
+
+    # ------------------------- 场景 4：未知工作表不产生有效行 -------------------------
+    def test_scenario_04_unknown_sheet_no_valid_rows(self) -> None:
         with _MiniWorkbook() as twb:
             _append_sheet(
                 twb.workbook,
                 title="神秘党支部",
                 header_row2=_standard_header_row2(),
-                data_rows=[["20239999", "佚名", "正式党员", "", "", 0, None, None, None]],
+                data_rows=[
+                    ["20239999", "佚名", "正式党员", "", "2025/01/10", 0, None, None, None],
+                ],
             )
             twb.workbook.save(twb.path)
 
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "神秘党支部", errors, warnings)
-            # 虽未知工作表但仍允许解析数据，不过要登记 UNKNOWN_SHEET
-            unknown_errors = [e for e in errors if e.code == "UNKNOWN_SHEET"]
-            self.assertTrue(unknown_errors, errors)
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(result.total_sheets, 1)
+            self.assertEqual(len(result.valid_rows), 0)
+            unknown_errors = [e for e in result.errors if e.code == ERROR_UNKNOWN_SHEET]
+            self.assertTrue(unknown_errors)
             unknown = unknown_errors[0]
             self.assertEqual(unknown.sheet_name, "神秘党支部")
-            # ParseError 必须 8 字段齐全（业务规则 5）
-            self.assertTrue(unknown.code and unknown.message and unknown.field_name)
             self.assertEqual(unknown.excel_row_number, 1)
-            # 数据应仍按通用逻辑解析进入 valid_rows（警告级登记）
-            self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0].student_number, "20239999")
+            self.assertEqual(len(result.sheet_results), 1)
+            self.assertEqual(result.sheet_results[0].status, "unknown")
+            self.assertEqual(result.sheet_results[0].valid_row_count, 0)
 
-    # ------------------------- 场景 3：表头缺失记录 HEADER_NOT_FOUND -------------------------
-    def test_scenario_03_header_not_found(self) -> None:
-        with _MiniWorkbook() as twb:
-            # 故意放一个普通字段，不含姓名和学号表头
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=["序号", "备注", "党员身份", "职务", "日期"],
-                data_rows=[["1", "20230001 张三", "正式党员", "书记", "2025/01/10"]],
-            )
-            twb.workbook.save(twb.path)
-
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(rows, [])
-            header_errs = [e for e in errors if e.code == ERROR_HEADER_NOT_FOUND]
-            self.assertTrue(header_errs)
-            header_err = header_errs[0]
-            self.assertEqual(header_err.field_name, "header")
-            self.assertEqual(header_err.excel_row_number, 2)
-
-    # ------------------------- 场景 4：字段列顺序变化仍能解析 -------------------------
-    def test_scenario_04_column_order_changed(self) -> None:
-        with _MiniWorkbook() as twb:
-            # 完全乱序列：职务在前，姓名在中间，思想汇报列分两处
-            messy_header = [
-                "职务",
-                "申请入党时间",
-                "第2次思想汇报",
-                "学号",
-                "思想汇报总篇数",
-                "姓名",
-                "发展阶段",
-                "第1次思想汇报",
-                "第3次思想汇报",
-            ]
-            data = [
-                # 对应位置上填值
-                "支部书记", "2025/01/10", "2025/06/15", "20230505", 3, "周某", "中共预备党员", "2025/03/01", "2025/09/20",
-            ]
-            _append_sheet(twb.workbook, title="惟理党支部", header_row2=messy_header, data_rows=[data])
-            twb.workbook.save(twb.path)
-
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "惟理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(len(rows), 1)
-            row = rows[0]
-            self.assertEqual(row.student_number, "20230505")
-            self.assertEqual(row.name, "周某")
-            self.assertEqual(row.development_stage, "PROBATIONARY")
-            self.assertEqual(row.reported_total_count, 3)
-            self.assertEqual(row.calculated_date_count, 3)
-            # 思想汇报列顺序不影响内部 sequence_number 升序
-            seqs = [r.sequence_number for r in row.report_items]
-            self.assertEqual(seqs, [1, 2, 3])
-
-    # ------------------------- 场景 5：日期格式 YYYY/MM/DD -------------------------
-    def test_scenario_05_date_format_slash(self) -> None:
-        import datetime as _dt
-
+    # ------------------------- 场景 5：前两行合法表头识别 -------------------------
+    def test_scenario_05_header_first_two_rows(self) -> None:
         with _MiniWorkbook() as twb:
             _append_sheet(
                 twb.workbook,
                 title="明理党支部",
                 header_row2=_standard_header_row2(),
                 data_rows=[
-                    ["20231001", "学生A", "正式党员", "", "2025/01/10", 1, "2025/06/30", None, None],
+                    ["20230001", "张三", "正式党员", "", "2025/01/10", 1, "2025/03/01", None, None],
                 ],
             )
             twb.workbook.save(twb.path)
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(rows[0].applied_at, _dt.date(2025, 1, 10))
-            self.assertEqual(rows[0].report_items[0].submitted_at, _dt.date(2025, 6, 30))
 
-    # ------------------------- 场景 6：日期格式 YYYY-MM-DD -------------------------
-    def test_scenario_06_date_format_dash(self) -> None:
-        import datetime as _dt
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(len(result.valid_rows), 1)
+            row = result.valid_rows[0]
+            self.assertEqual(row.excel_row_number, 3)
+            self.assertEqual(row.name, "张三")
+            self.assertEqual(row.student_number, "20230001")
 
-        with _MiniWorkbook() as twb:
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=_standard_header_row2(),
-                data_rows=[
-                    ["20231002", "学生B", "预备党员", "", "2025-02-20", 1, "2025-07-01", None, None],
-                ],
-            )
-            twb.workbook.save(twb.path)
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(rows[0].applied_at, _dt.date(2025, 2, 20))
-            self.assertEqual(rows[0].report_items[0].submitted_at, _dt.date(2025, 7, 1))
-
-    # ------------------------- 场景 7：日期格式 YYYY.MM.DD -------------------------
-    def test_scenario_07_date_format_dot(self) -> None:
-        import datetime as _dt
-
-        with _MiniWorkbook() as twb:
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=_standard_header_row2(),
-                data_rows=[
-                    ["20231003", "学生C", "正式党员", "", "2024.09.18", 1, "2025.05.12", None, None],
-                ],
-            )
-            twb.workbook.save(twb.path)
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(rows[0].applied_at, _dt.date(2024, 9, 18))
-            self.assertEqual(rows[0].report_items[0].submitted_at, _dt.date(2025, 5, 12))
-
-    # ------------------------- 场景 8：日期格式 YYYY年M月D日 -------------------------
-    def test_scenario_08_date_format_chinese(self) -> None:
-        import datetime as _dt
-
-        with _MiniWorkbook() as twb:
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=_standard_header_row2(),
-                data_rows=[
-                    ["20231004", "学生D", "入党积极分子", "", "2024年12月1日", 1, "2025年07月20日", None, None],
-                ],
-            )
-            twb.workbook.save(twb.path)
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(rows[0].applied_at, _dt.date(2024, 12, 1))
-            self.assertEqual(rows[0].report_items[0].submitted_at, _dt.date(2025, 7, 20))
-
-    # ------------------------- 场景 9：非法日期处理（不崩溃，记错误并跳过整行） -------------------------
-    def test_scenario_09_invalid_date(self) -> None:
-        with _MiniWorkbook() as twb:
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=_standard_header_row2(),
-                data_rows=[
-                    ["20231005", "学生E", "正式党员", "", "2025/13/40", 0, None, None, None],  # 申请日非法
-                    ["20231006", "学生F", "正式党员", "", "2025/01/10", 2, "昨天", "2025/06/15", None],  # 1次思想汇报非法
-                ],
-            )
-            twb.workbook.save(twb.path)
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-
-            # 学生E：申请时间非法 → 错误行，不进入 valid_rows
-            self.assertTrue(any(e.code == ERROR_ROW_INVALID_APPLIED_DATE for e in errors))
-            self.assertFalse(any(r.name == "学生E" for r in rows))
-            # 学生F：申请日 OK；思想汇报有 1 个非法日期 → 仅警告，仍进 valid_rows
-            self.assertTrue(any(r.name == "学生F" for r in rows))
-            self.assertTrue(
-                any(w.code == WARNING_REPORT_DATE_INVALID for w in warnings)
-            )
-
-    # ------------------------- 场景 10：思想汇报列动态识别（非固定 20 列） -------------------------
-    def test_scenario_10_dynamic_report_columns(self) -> None:
-        with _MiniWorkbook() as twb:
-            custom_header = [
-                "学号", "姓名", "发展阶段", "思想汇报总篇数",
-                "第1次思想汇报", "第5次思想汇报", "第12次思想汇报", "第20次思想汇报",
-            ]
-            data = [
-                ["20237777", "学生G", "正式党员", 3, "2025/01/01", "2025/05/05", "2025/12/12", None],
-            ]
-            _append_sheet(twb.workbook, title="明理党支部", header_row2=custom_header, data_rows=data)
-            twb.workbook.save(twb.path)
-
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(len(rows), 1)
-            seqs = sorted(r.sequence_number for r in rows[0].report_items)
-            self.assertEqual(seqs, [1, 5, 12])
-            self.assertEqual(rows[0].calculated_date_count, 3)
-            # 思想汇报总篇数填 3，但实际有 3 条日期；同时第 20 次为空 → 不生成 report_item
-            self.assertEqual(rows[0].reported_total_count, 3)
-
-    # ------------------------- 场景 11：中文次数转换 -------------------------
-    def test_scenario_11_chinese_sequence_columns(self) -> None:
+    # ------------------------- 场景 6：第99次成功、第100次明确失败 -------------------------
+    def test_scenario_06_arabic_99_ok_100_fail(self) -> None:
         with _MiniWorkbook() as twb:
             header = [
                 "学号", "姓名", "发展阶段", "思想汇报总篇数",
-                "第一次思想汇报", "第五次思想汇报", "第十三次思想汇报", "第二十次思想汇报",
+                "第99次思想汇报", "第100次思想汇报",
             ]
             data = [
-                ["20238888", "学生H", "预备党员", 4, "2025/01/05", "2025/05/10", "2025/11/13", "2025/12/20"],
+                ["20230001", "张三", "正式党员", 1, "2025/06/01", "2025/12/01"],
             ]
             _append_sheet(twb.workbook, title="明理党支部", header_row2=header, data_rows=data)
             twb.workbook.save(twb.path)
 
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(len(rows), 1)
-            by_seq = {r.sequence_number: r for r in rows[0].report_items}
-            self.assertEqual(set(by_seq.keys()), {1, 5, 13, 20})
-            self.assertEqual(by_seq[1].source_column_name, "第一次思想汇报")
-            self.assertEqual(by_seq[13].source_column_name, "第十三次思想汇报")
-            self.assertEqual(by_seq[20].source_column_name, "第二十次思想汇报")
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(len(result.valid_rows), 1)
+            row = result.valid_rows[0]
+            seqs = {r.sequence_number for r in row.report_items}
+            self.assertIn(99, seqs)
+            self.assertNotIn(100, seqs)
+            self.assertEqual(row.calculated_date_count, 1)
 
-    # ------------------------- 场景 12：缺少总篇数列记录警告 -------------------------
-    def test_scenario_12_missing_total_count_column(self) -> None:
+    # ------------------------- 场景 7：第二十次成功、第二十一次失败 -------------------------
+    def test_scenario_07_chinese_20_ok_21_fail(self) -> None:
+        with _MiniWorkbook() as twb:
+            header = [
+                "学号", "姓名", "发展阶段", "思想汇报总篇数",
+                "第二十次思想汇报", "第二十一次思想汇报",
+            ]
+            data = [
+                ["20230001", "张三", "正式党员", 1, "2025/06/01", "2025/12/01"],
+            ]
+            _append_sheet(twb.workbook, title="明理党支部", header_row2=header, data_rows=data)
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(len(result.valid_rows), 1)
+            row = result.valid_rows[0]
+            seqs = {r.sequence_number for r in row.report_items}
+            self.assertIn(20, seqs)
+            self.assertNotIn(21, seqs)
+            self.assertEqual(row.calculated_date_count, 1)
+
+    # ------------------------- 场景 8：非法总篇数与空值结果不同 -------------------------
+    def test_scenario_08_invalid_total_vs_empty(self) -> None:
+        with _MiniWorkbook() as twb:
+            _append_sheet(
+                twb.workbook,
+                title="明理党支部",
+                header_row2=_standard_header_row2(),
+                data_rows=[
+                    ["20230001", "张三", "正式党员", "", "2025/01/10", "abc", "2025/03/01", None, None],
+                    ["20230002", "李四", "预备党员", "", "2025/01/10", None, "2025/03/01", None, None],
+                ],
+            )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(len(result.valid_rows), 1)
+            row = result.valid_rows[0]
+            self.assertEqual(row.name, "李四")
+            self.assertIsNone(row.reported_total_count)
+            self.assertFalse(any(r.name == "张三" for r in result.valid_rows))
+            self.assertTrue(
+                any(e.code == error_codes.ERROR_REPORT_TOTAL_INVALID for e in result.errors)
+            )
+
+    # ------------------------- 场景 9：缺总篇数列只产生一次工作表警告 -------------------------
+    def test_scenario_09_missing_total_column_one_warning(self) -> None:
         with _MiniWorkbook() as twb:
             header = [
                 "学号", "姓名", "发展阶段", "职务", "申请入党时间",
                 "第1次思想汇报", "第2次思想汇报",
             ]
             data = [
-                ["20235555", "学生I", "正式党员", "", "2025/01/10", "2025/03/01", "2025/06/15"],
+                ["20230001", "同学A", "正式党员", "", "2025/01/10", "2025/03/01", "2025/06/01"],
+                ["20230002", "同学B", "预备党员", "", "2025/01/10", "2025/03/01", "2025/06/01"],
+                ["20230003", "同学C", "正式党员", "", "2025/01/10", "2025/03/01", "2025/06/01"],
             ]
             _append_sheet(twb.workbook, title="明理党支部", header_row2=header, data_rows=data)
             twb.workbook.save(twb.path)
 
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(len(rows), 1)
-            self.assertIsNone(rows[0].reported_total_count)
-            self.assertEqual(rows[0].calculated_date_count, 2)
-            self.assertTrue(
-                any(w.code == WARNING_REPORT_TOTAL_COLUMN_MISSING for w in warnings)
-            )
+            result = parse_workbook(Path(twb.path))
+            self.assertEqual(len(result.valid_rows), 3)
+            missing_warnings = [
+                w for w in result.warnings
+                if w.code == WARNING_REPORT_TOTAL_COLUMN_MISSING
+            ]
+            self.assertEqual(len(missing_warnings), 1)
+            self.assertEqual(missing_warnings[0].excel_row_number, 2)
 
-    # ------------------------- 场景 13：总篇数不一致记录警告 -------------------------
-    def test_scenario_13_total_count_mismatch(self) -> None:
+    # ------------------------- 场景 10：文件不存在抛 FileNotFoundError -------------------------
+    def test_scenario_10_file_not_found(self) -> None:
+        fake_path = Path("nonexistent_file_for_test_12345.xlsx")
+        with self.assertRaises(FileNotFoundError):
+            parse_workbook(fake_path)
+
+    # ------------------------- 场景 11：解析前后数据库不变 -------------------------
+    def test_scenario_11_no_database_side_effects(self) -> None:
+        import sys
+
+        mod = sys.modules["apps.imports.parser"]
+        keys_before = set(vars(mod).keys())
+        self.assertNotIn("Student", keys_before)
+        self.assertNotIn("ImportBatch", keys_before)
+        self.assertNotIn("models", keys_before)
+
         with _MiniWorkbook() as twb:
             _append_sheet(
                 twb.workbook,
                 title="明理党支部",
                 header_row2=_standard_header_row2(),
                 data_rows=[
-                    # reported=5, actual=2 → 触发 REPORT_COUNT_MISMATCH
-                    ["20236666", "学生J", "正式党员", "", "2025/01/10", 5, "2025/03/01", None, "2025/09/20"],
+                    ["20230001", "张三", "正式党员", "", "2025/01/10", 1, "2025/03/01", None, None],
                 ],
             )
             twb.workbook.save(twb.path)
+            parse_workbook(Path(twb.path))
 
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(errors, [])
-            self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0].reported_total_count, 5)  # 保留原始填报
-            self.assertEqual(rows[0].calculated_date_count, 2)
-            self.assertTrue(
-                any(w.code == WARNING_REPORT_COUNT_MISMATCH for w in warnings)
-            )
-
-    # ------------------------- 场景 14：疑似错位行记录错误并跳过 -------------------------
-    def test_scenario_14_column_shift_suspected_skipped(self) -> None:
-        with _MiniWorkbook() as twb:
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=_standard_header_row2(),
-                data_rows=[
-                    # 多个类型与表头不匹配：学号像姓名 + 姓名像学号 + 阶段像日期 → ≥2处类型错 → ROW_COLUMN_SHIFT_SUSPECTED
-                    ["学生K", "20231111", "2025/02/28", "正式党员", "书记", 1, None, None, None],
-                ],
-            )
-            twb.workbook.save(twb.path)
-
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(rows, [])
-            self.assertTrue(
-                any(e.code == ERROR_ROW_COLUMN_SHIFT_SUSPECTED for e in errors),
-                errors,
-            )
-
-    # ------------------------- 场景 15：错误行不进入 valid_rows -------------------------
-    def test_scenario_15_error_rows_not_in_valid_rows(self) -> None:
-        with _MiniWorkbook() as twb:
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=_standard_header_row2(),
-                data_rows=[
-                    ["", "没有学号同学", "正式党员", "", "", 0, None, None, None],  # 缺学号
-                    ["20232222", "", "预备党员", "", "", 0, None, None, None],  # 缺姓名
-                    ["20232223", "非法阶段同学", "神奇阶段", "", "", 0, None, None, None],  # 阶段非法
-                    ["20232224", "正常同学", "正式党员", "", "2025/01/10", 0, None, None, None],  # 合法记录
-                ],
-            )
-            twb.workbook.save(twb.path)
-
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            names = [r.name for r in rows]
-            self.assertEqual(names, ["正常同学"])
-            codes = {e.code for e in errors}
-            self.assertIn(ERROR_ROW_MISSING_REQUIRED, codes)
-            self.assertIn(ERROR_ROW_INVALID_STAGE, codes)
-
-    # ------------------------- 场景 16：警告行可进入 valid_rows -------------------------
-    def test_scenario_16_warning_rows_still_in_valid_rows(self) -> None:
-        with _MiniWorkbook() as twb:
-            _append_sheet(
-                twb.workbook,
-                title="明理党支部",
-                header_row2=_standard_header_row2(),
-                data_rows=[
-                    # 缺少总篇数列警告（改 header 去掉总篇数列另写在第二行）
-                    ["20233333", "学生L", "正式党员", "", "2025/01/10", 5, "2025/03/01", None, "2025/09/20"],
-                ],
-            )
-            twb.workbook.save(twb.path)
-
-            errors: list = []
-            warnings: list = []
-            rows = _drive_sheet_parse(twb.path, "明理党支部", errors, warnings)
-            self.assertEqual(len(rows), 1)
-            self.assertEqual(rows[0].name, "学生L")
-            self.assertTrue(
-                any(w.code == WARNING_REPORT_COUNT_MISMATCH for w in warnings)
-            )
-
+        keys_after = set(vars(mod).keys())
+        self.assertNotIn("Student", keys_after)
+        self.assertNotIn("ImportBatch", keys_after)
+        self.assertNotIn("models", keys_after)

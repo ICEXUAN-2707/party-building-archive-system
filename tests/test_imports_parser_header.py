@@ -100,7 +100,7 @@ class ParseHeaderRowAliasTests(SimpleTestCase):
     def test_student_number_aliases(self) -> None:
         for alias in ("学生学号", "学生编号", "学号/工号"):
             with self.subTest(alias=alias):
-                header = [alias, "姓名"]
+                header = [alias, "姓名", "发展阶段"]
                 result = parse_header_row(header)
                 self.assertTrue(result.ok, result.error_message)
                 self.assertEqual(result.mapping.student_number_col, 0)
@@ -109,7 +109,7 @@ class ParseHeaderRowAliasTests(SimpleTestCase):
     def test_name_aliases(self) -> None:
         for alias in ("学生姓名", "名字"):
             with self.subTest(alias=alias):
-                header = ["学号", alias]
+                header = ["学号", alias, "发展阶段"]
                 result = parse_header_row(header)
                 self.assertTrue(result.ok, result.error_message)
                 self.assertEqual(result.mapping.name_col, 1)
@@ -180,9 +180,9 @@ class ParseHeaderRowReportColumnTests(SimpleTestCase):
         header = [
             "学号",
             "姓名",
+            "发展阶段",
             " 第 3 次思想汇报 ",
             "第10次思想汇报",
-            "第0次思想汇报",
             "第 20 次思想汇报",
         ]
         result = parse_header_row(header)
@@ -190,15 +190,13 @@ class ParseHeaderRowReportColumnTests(SimpleTestCase):
         by_seq = {r.sequence_number: r for r in result.mapping.report_columns}
         self.assertIn(3, by_seq)
         self.assertIn(10, by_seq)
-        self.assertIn(0, by_seq)
         self.assertIn(20, by_seq)
-        self.assertEqual(by_seq[3].column_index, 2)
-        self.assertEqual(by_seq[10].column_index, 3)
-        self.assertEqual(by_seq[0].column_index, 4)
+        self.assertEqual(by_seq[3].column_index, 3)
+        self.assertEqual(by_seq[10].column_index, 4)
         self.assertEqual(by_seq[20].column_index, 5)
 
     def test_report_columns_preserve_source_name(self) -> None:
-        header = ["学号", "姓名", " 第 5 次思想汇报 "]
+        header = ["学号", "姓名", "发展阶段", " 第 5 次思想汇报 "]
         result = parse_header_row(header)
         self.assertTrue(result.ok)
         report = result.mapping.report_columns[0]
@@ -207,7 +205,7 @@ class ParseHeaderRowReportColumnTests(SimpleTestCase):
         self.assertIsInstance(report, ReportColumn)
 
     def test_non_report_column_is_not_included(self) -> None:
-        header = ["学号", "姓名", "备注", "其他信息"]
+        header = ["学号", "姓名", "发展阶段", "备注", "其他信息"]
         result = parse_header_row(header)
         self.assertTrue(result.ok)
         self.assertEqual(result.mapping.report_columns, [])
@@ -233,7 +231,8 @@ class ParseHeaderRowNormalizationTests(SimpleTestCase):
     def test_optional_fields_missing_but_core_present(self) -> None:
         header = ["学号", "姓名"]
         result = parse_header_row(header)
-        self.assertTrue(result.ok)
+        self.assertFalse(result.ok)
+        self.assertEqual(result.error_code, ERROR_HEADER_NOT_FOUND)
         m = result.mapping
         self.assertIsNone(m.development_stage_col)
         self.assertIsNone(m.position_col)
