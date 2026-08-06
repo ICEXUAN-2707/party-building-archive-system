@@ -3,13 +3,18 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from pathlib import Path
+
+from openpyxl import load_workbook
 
 from apps.imports import error_codes
 from apps.imports.datatypes import (
     ParseError,
+    ParseResult,
     ParseWarning,
     ParsedReportItem,
     ParsedStudentRow,
+    SheetResult,
 )
 from apps.imports.date_utils import parse_date
 from apps.imports.report_column_utils import parse_report_sequence
@@ -30,6 +35,7 @@ ERROR_REPORT_COLUMN_INVALID_CHINESE = error_codes.ERROR_REPORT_COLUMN_INVALID_CH
 WARNING_REPORT_COUNT_MISMATCH = error_codes.WARNING_REPORT_COUNT_MISMATCH
 WARNING_REPORT_TOTAL_COLUMN_MISSING = error_codes.WARNING_REPORT_TOTAL_COLUMN_MISSING
 WARNING_REPORT_DATE_INVALID = error_codes.WARNING_REPORT_DATE_INVALID
+ERROR_UNKNOWN_SHEET = error_codes.ERROR_UNKNOWN_SHEET
 
 ALL_ERROR_CODES = error_codes.ALL_ERROR_CODES
 ALL_WARNING_CODES = error_codes.ALL_WARNING_CODES
@@ -38,6 +44,7 @@ WARNING_MESSAGES = error_codes.WARNING_MESSAGES
 
 _MSG_NAME_MISSING = "无法识别表头：缺少核心字段【姓名】"
 _MSG_STUDENT_NUMBER_MISSING = "无法识别表头：缺少核心字段【学号】"
+_MSG_STAGE_MISSING = "无法识别表头：缺少核心字段【发展阶段】"
 _MSG_ROW_NAME_EMPTY = "姓名为空"
 _MSG_ROW_STUDENT_NUMBER_EMPTY = "学号为空"
 _MSG_ROW_STAGE_EMPTY = "发展阶段为空"
@@ -78,6 +85,18 @@ REPORTED_TOTAL_COUNT_ALIASES: tuple[str, ...] = (
 
 REPORT_COLUMN_ARABIC_PATTERN = re.compile(r"^\s*第\s*(\d+)\s*次\s*思想汇报\s*$")
 
+NINE_PARTY_BRANCHES: dict[str, tuple[str, str]] = {
+    "明理党支部": ("MINGLI", "明理党支部"),
+    "德理党支部": ("DELI", "德理党支部"),
+    "惟理党支部": ("WEILI", "惟理党支部"),
+    "求理党支部": ("QIULI", "求理党支部"),
+    "知理党支部": ("ZHILI", "知理党支部"),
+    "昭理党支部": ("ZHAOLI", "昭理党支部"),
+    "学理党支部": ("XUELI", "学理党支部"),
+    "博理党支部": ("BOLI", "博理党支部"),
+    "艺理党支部": ("YILI", "艺理党支部"),
+}
+
 STAGE_CHINESE_TO_CODE: dict[str, str] = {
     "入党积极分子": "ACTIVIST",
     "培养对象": "ACTIVIST",
@@ -107,7 +126,11 @@ class ColumnMapping:
     report_columns: list[ReportColumn] = field(default_factory=list)
 
     def has_core_fields(self) -> bool:
-        return self.name_col is not None and self.student_number_col is not None
+        return (
+            self.name_col is not None
+            and self.student_number_col is not None
+            and self.development_stage_col is not None
+        )
 
     def missing_core_fields(self) -> list[str]:
         missing: list[str] = []
@@ -115,6 +138,8 @@ class ColumnMapping:
             missing.append("姓名")
         if self.student_number_col is None:
             missing.append("学号")
+        if self.development_stage_col is None:
+            missing.append("发展阶段")
         return missing
 
 
@@ -174,9 +199,6 @@ def _find_col_index(
     return None
 
 
-_BACKUP_ARABIC_REPORT_PATTERN = re.compile(r"^\s*第\s*(\d{1,3})\s*次\s*(?:思想汇报)?\s*$")
-
-
 def _build_report_column_from_name(column_name: str, column_index: int) -> ReportColumn | None:
     parsed = parse_report_sequence(column_name)
     if parsed.ok and parsed.sequence_number is not None:
@@ -184,17 +206,6 @@ def _build_report_column_from_name(column_name: str, column_index: int) -> Repor
             sequence_number=parsed.sequence_number,
             column_index=column_index,
             source_column_name=parsed.source_column_name,
-        )
-    backup = _BACKUP_ARABIC_REPORT_PATTERN.match(column_name.strip())
-    if backup:
-        try:
-            number = int(backup.group(1))
-        except (TypeError, ValueError):
-            return None
-        return ReportColumn(
-            sequence_number=number,
-            column_index=column_index,
-            source_column_name=column_name.strip(),
         )
     return None
 
@@ -251,6 +262,8 @@ def parse_header_row(header_row: list[object]) -> HeaderParseResult:
         messages.append(_MSG_NAME_MISSING)
     if "学号" in missing:
         messages.append(_MSG_STUDENT_NUMBER_MISSING)
+    if "发展阶段" in missing:
+        messages.append(_MSG_STAGE_MISSING)
     error_message = "；".join(messages) if messages else "缺少核心表头字段"
 
     return HeaderParseResult(
@@ -491,21 +504,15 @@ def parse_student_row(
         applied_at = applied_result.value
 
     reported_total_count = _parse_int_or_none(reported_total_raw)
-
-    if mapping.reported_total_count_col is None:
-        warnings.append(
-            ParseWarning(
-                code=WARNING_REPORT_TOTAL_COLUMN_MISSING,
-                message=_MSG_REPORT_TOTAL_COLUMN_MISSING,
-                sheet_name=sheet_name,
-                excel_row_number=excel_row_number,
-                student_name=name,
-                student_number=student_number,
-                field_name="reported_total_count",
-                source_value="",
-                parsed_value="",
-            )
+    reported_total_raw_text = _normalize(reported_total_raw) if reported_total_raw is not None else ""
+    if reported_total_raw_text and reported_total_count is None:
+        append_error(
+            error_codes.ERROR_REPORT_TOTAL_INVALID,
+            f"思想汇报总篇数非法：{reported_total_raw_text}",
+            field_name="reported_total_count",
+            source_value=reported_total_raw_text,
         )
+        return RowParseResult(student_row=None, errors=errors, warnings=warnings)
 
     report_items: list[ParsedReportItem] = []
     for rc in mapping.report_columns:
@@ -599,3 +606,177 @@ def parse_sheet_rows(
         if outcome.student_row is not None:
             sheet.valid_rows.append(outcome.student_row)
     return sheet
+
+def parse_workbook(file_path: Path) -> ParseResult:
+    """唯一生产入口：打开 Excel 工作簿，遍历全部工作表，聚合解析结果。
+
+    输入：本地 Excel 文件 Path。
+    输出：ParseResult。
+    异常：文件不存在抛 FileNotFoundError；IO/损坏/openpyxl 不可读属系统异常。
+    """
+    if not file_path.exists():
+        raise FileNotFoundError(f"Excel 文件不存在：{file_path}")
+
+    wb = load_workbook(file_path, data_only=True, read_only=False)
+    try:
+        result = ParseResult()
+        sheet_names = wb.sheetnames
+        result.total_sheets = len(sheet_names)
+
+        for title in sheet_names:
+            ws = wb[title]
+            rows = [list(r) for r in ws.iter_rows(values_only=True)]
+
+            branch_info = NINE_PARTY_BRANCHES.get(title)
+
+            if branch_info is None:
+                result.errors.append(
+                    ParseError(
+                        code=ERROR_UNKNOWN_SHEET,
+                        message=f"工作表名称不在九个党支部映射中：{title}",
+                        sheet_name=title,
+                        excel_row_number=1,
+                        student_name="",
+                        student_number="",
+                        field_name="sheet",
+                        source_value=title,
+                    )
+                )
+                result.sheet_results.append(
+                    SheetResult(
+                        sheet_name=title,
+                        branch_code=None,
+                        branch_name=title,
+                        status="unknown",
+                        total_rows=0,
+                        valid_row_count=0,
+                        error_count=1,
+                        warning_count=0,
+                    )
+                )
+                continue
+
+            branch_code, branch_name = branch_info
+
+            if len(rows) < 2:
+                result.errors.append(
+                    ParseError(
+                        code=ERROR_HEADER_NOT_FOUND,
+                        message="工作表行数不足，无法识别表头",
+                        sheet_name=title,
+                        excel_row_number=1,
+                        student_name="",
+                        student_number="",
+                        field_name="header",
+                        source_value="",
+                    )
+                )
+                result.sheet_results.append(
+                    SheetResult(
+                        sheet_name=title,
+                        branch_code=branch_code,
+                        branch_name=branch_name,
+                        status="failed",
+                        total_rows=0,
+                        valid_row_count=0,
+                        error_count=1,
+                        warning_count=0,
+                    )
+                )
+                continue
+
+            header_result = parse_header_row(rows[1])
+            if not header_result.ok:
+                result.errors.append(
+                    ParseError(
+                        code=header_result.error_code or ERROR_HEADER_NOT_FOUND,
+                        message=header_result.error_message or ERROR_MESSAGES[ERROR_HEADER_NOT_FOUND],
+                        sheet_name=title,
+                        excel_row_number=2,
+                        student_name="",
+                        student_number="",
+                        field_name="header",
+                        source_value=" | ".join(str(c) for c in rows[1]),
+                    )
+                )
+                result.sheet_results.append(
+                    SheetResult(
+                        sheet_name=title,
+                        branch_code=branch_code,
+                        branch_name=branch_name,
+                        status="failed",
+                        total_rows=0,
+                        valid_row_count=0,
+                        error_count=1,
+                        warning_count=0,
+                    )
+                )
+                continue
+
+            mapping = header_result.mapping
+            data_rows = rows[2:]
+            sheet_parse = parse_sheet_rows(
+                data_rows=data_rows,
+                mapping=mapping,
+                sheet_name=title,
+                start_excel_row_number=3,
+            )
+
+            for row in sheet_parse.valid_rows:
+                row.branch_code = branch_code
+                row.branch_name = branch_name
+
+            if mapping.reported_total_count_col is None:
+                sheet_parse.warnings.append(
+                    ParseWarning(
+                        code=WARNING_REPORT_TOTAL_COLUMN_MISSING,
+                        message=_MSG_REPORT_TOTAL_COLUMN_MISSING,
+                        sheet_name=title,
+                        excel_row_number=2,
+                        student_name="",
+                        student_number="",
+                        field_name="reported_total_count",
+                        source_value="",
+                        parsed_value="",
+                    )
+                )
+
+            non_empty_data_rows = sum(1 for r in data_rows if any(c is not None and str(c).strip() != "" for c in r))
+            row_level_errors = len(sheet_parse.errors)
+            sheet_warnings = len(sheet_parse.warnings)
+            sheet_status = "success" if len(sheet_parse.valid_rows) > 0 or non_empty_data_rows == 0 else "failed"
+
+            result.sheet_results.append(
+                SheetResult(
+                    sheet_name=title,
+                    branch_code=branch_code,
+                    branch_name=branch_name,
+                    status=sheet_status,
+                    total_rows=non_empty_data_rows,
+                    valid_row_count=len(sheet_parse.valid_rows),
+                    error_count=row_level_errors,
+                    warning_count=sheet_warnings,
+                )
+            )
+            result.valid_rows.extend(sheet_parse.valid_rows)
+            result.errors.extend(sheet_parse.errors)
+            result.warnings.extend(sheet_parse.warnings)
+
+        result.total_rows = sum(s.total_rows for s in result.sheet_results if s.status != "unknown")
+        result.success_rows = len(result.valid_rows)
+        row_level_error_codes = {
+            ERROR_ROW_MISSING_REQUIRED,
+            ERROR_ROW_INVALID_STAGE,
+            ERROR_ROW_INVALID_APPLIED_DATE,
+            ERROR_ROW_COLUMN_SHIFT_SUSPECTED,
+        }
+        result.skipped_rows = sum(1 for e in result.errors if e.code in row_level_error_codes)
+        result.warning_rows = len({
+            (w.sheet_name, w.excel_row_number) for w in result.warnings
+        })
+        result.success_sheets = sum(1 for s in result.sheet_results if s.status == "success")
+        result.failed_sheets = sum(1 for s in result.sheet_results if s.status == "failed")
+
+        return result
+    finally:
+        wb.close()
