@@ -16,6 +16,7 @@ from __future__ import annotations
 # ----------------------------------------------------------------------
 ERROR_HEADER_NOT_FOUND = "HEADER_NOT_FOUND"
 HEADER_NOT_FOUND = ERROR_HEADER_NOT_FOUND  # 别名
+ERROR_UNKNOWN_SHEET = "UNKNOWN_SHEET"
 
 # ----------------------------------------------------------------------
 # 二、行级别错误码
@@ -35,6 +36,7 @@ ERROR_DATE_VALUE_TYPE = "DATE_VALUE_TYPE"
 ERROR_REPORT_COLUMN_NO_MATCH = "REPORT_COLUMN_NO_MATCH"
 ERROR_REPORT_COLUMN_SEQUENCE_OUT_OF_RANGE = "REPORT_COLUMN_SEQUENCE_OUT_OF_RANGE"
 ERROR_REPORT_COLUMN_INVALID_CHINESE = "REPORT_COLUMN_INVALID_CHINESE"
+ERROR_REPORT_TOTAL_INVALID = "REPORT_TOTAL_INVALID"
 
 # ----------------------------------------------------------------------
 # 四、行/单元格级别警告码
@@ -59,6 +61,8 @@ ERROR_MESSAGES: dict[str, str] = {
     ERROR_REPORT_COLUMN_NO_MATCH: "该列名无法匹配第X次思想汇报格式",
     ERROR_REPORT_COLUMN_SEQUENCE_OUT_OF_RANGE: "思想汇报序号超出范围 1~99",
     ERROR_REPORT_COLUMN_INVALID_CHINESE: "中文次数无法识别，仅支持第一~第二十",
+    ERROR_REPORT_TOTAL_INVALID: "思想汇报总篇数为非法值",
+    ERROR_UNKNOWN_SHEET: "工作表名称不在九个党支部映射中",
 }
 
 WARNING_MESSAGES: dict[str, str] = {
