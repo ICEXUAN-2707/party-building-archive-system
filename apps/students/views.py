@@ -1,7 +1,7 @@
 from django.shortcuts import render
 # 按契约引入成员3统一认证工具（等待develop合入后生效）
 # 修改之后
-from ..accounts.student_access import get_current_student, student_required
+from apps.accounts.student_access import get_current_student, student_required
 from .models import Student, ApplicationRecord, IdeologicalReport
 
 
