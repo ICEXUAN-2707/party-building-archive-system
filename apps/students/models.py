@@ -1,4 +1,9 @@
 from django.db import models
+from django.utils import timezone
+
+
+def get_default_submitted_date():
+    return timezone.now().date()
 
 
 class DevelopmentStage(models.TextChoices):
@@ -73,7 +78,7 @@ class Student(models.Model):
         return f"{self.name}（{self.student_number}）"
 
 
-# 修正：完整思想汇报模型，补充测试需要的submitted_at字段
+# 思想汇报模型，使用可序列化函数作为日期默认值，修复迁移序列化报错
 class IdeologicalReport(models.Model):
     student = models.ForeignKey(
         Student,
@@ -82,7 +87,7 @@ class IdeologicalReport(models.Model):
         on_delete=models.CASCADE,
     )
     sequence_number = models.IntegerField("序号")
-    submitted_at = models.DateField("提交时间")
+    submitted_at = models.DateField("提交时间", default=get_default_submitted_date)
     is_active = models.BooleanField("是否有效", default=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
@@ -96,7 +101,7 @@ class IdeologicalReport(models.Model):
         return f"{self.student} - Report {self.sequence_number}"
 
 
-# 新增正式入党申请模型，删除原来别名ApplicationRecord=Student，解决Student()参数报错
+# 独立入党申请模型，删除旧别名 ApplicationRecord=Student，解决TypeError
 class ApplicationRecord(models.Model):
     student = models.ForeignKey(
         Student,
