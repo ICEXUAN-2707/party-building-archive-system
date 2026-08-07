@@ -32,11 +32,13 @@ class Student(models.Model):
     name = models.CharField("姓名", max_length=64)
     student_number = models.CharField("学号", max_length=32, unique=True)
     branch = models.ForeignKey(
-        PartyBranch,
-        verbose_name="党支部",
-        related_name="students",
-        on_delete=models.PROTECT,
-    )
+    PartyBranch,
+    verbose_name="党支部",
+    related_name="students",
+    on_delete=models.PROTECT,
+    null=True,
+    blank=True,
+)
     development_stage = models.CharField("发展阶段", max_length=32, choices=DevelopmentStage.choices)
     position = models.CharField("职务", max_length=128, blank=True)
     status = models.CharField(
@@ -69,3 +71,5 @@ class Student(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name}（{self.student_number}）"
+# 兼容测试导入，别名解决ApplicationRecord找不到
+ApplicationRecord = Student
