@@ -18,16 +18,18 @@
             </p>
         </div>
     </div>
+
     <div class="card mb-4 shadow-sm">
         <div class="card-header bg-secondary text-white">申请入党时间</div>
         <div class="card-body fs-5">
             {% if application and application.applied_at %}
                 申请入党时间：{{ application.applied_at|date:"Y年m月d日" }}
             {% else %}
-                申请入党时间：暂无记录
+                <span class="text-muted">申请入党时间：暂无记录</span>
             {% endif %}
         </div>
     </div>
+
     <div class="card mb-4 shadow-sm">
         <div class="card-header bg-success text-white">思想汇报记录</div>
         <div class="card-body">
@@ -41,17 +43,19 @@
             <hr>
             {% if report_list %}
                 {% for report in report_list %}
-                    <p class="fs-6">第{{ report.sequence }}篇：{{ report.submitted_at|date:"Y年m月d日" }}</p>
+                    <p class="fs-6">第{{ report.sequence_number }}篇：{{ report.submitted_at|date:"Y年m月d日" }}</p>
                 {% endfor %}
             {% else %}
-                <p class="text-muted">暂无提交时间记录</p>
+                <p class="text-muted">暂无有效思想汇报提交记录</p>
             {% endif %}
         </div>
     </div>
+
     <div class="alert alert-secondary mt-4">
         如发现个人信息或材料记录有误，请联系学院相关负责老师线下核实。系统数据按周期更新，请以页面显示的最近更新时间为准。
     </div>
-    <!-- 修正：POST表单+CSRF，使用正确student_logout路由 -->
+
+    <!-- POST表单+CSRF，使用学生专属登出接口 -->
     <div class="mt-4">
         <form method="POST" action="{% url 'accounts:student_logout' %}">
             {% csrf_token %}
