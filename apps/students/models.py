@@ -32,13 +32,13 @@ class Student(models.Model):
     name = models.CharField("姓名", max_length=64)
     student_number = models.CharField("学号", max_length=32, unique=True)
     branch = models.ForeignKey(
-    PartyBranch,
-    verbose_name="党支部",
-    related_name="students",
-    on_delete=models.PROTECT,
-    null=True,
-    blank=True,
-)
+        PartyBranch,
+        verbose_name="党支部",
+        related_name="students",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+    )
     development_stage = models.CharField("发展阶段", max_length=32, choices=DevelopmentStage.choices)
     position = models.CharField("职务", max_length=128, blank=True)
     status = models.CharField(
@@ -71,5 +71,29 @@ class Student(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name}（{self.student_number}）"
+
+
+# 新增：思想汇报模型，匹配views中查询逻辑，修复IdeologicalReport导入报错
+class IdeologicalReport(models.Model):
+    student = models.ForeignKey(
+        Student,
+        verbose_name="学生",
+        related_name="reports",
+        on_delete=models.CASCADE,
+    )
+    sequence_number = models.IntegerField("序号")
+    is_active = models.BooleanField("是否有效", default=True)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        verbose_name = "思想汇报"
+        verbose_name_plural = "思想汇报"
+        ordering = ["sequence_number"]
+
+    def __str__(self) -> str:
+        return f"{self.student} - Report {self.sequence_number}"
+
+
 # 兼容测试导入，别名解决ApplicationRecord找不到
 ApplicationRecord = Student
