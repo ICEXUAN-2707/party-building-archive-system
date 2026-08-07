@@ -73,7 +73,7 @@ class Student(models.Model):
         return f"{self.name}（{self.student_number}）"
 
 
-# 新增：思想汇报模型，匹配views中查询逻辑，修复IdeologicalReport导入报错
+# 修正：完整思想汇报模型，补充测试需要的submitted_at字段
 class IdeologicalReport(models.Model):
     student = models.ForeignKey(
         Student,
@@ -82,6 +82,7 @@ class IdeologicalReport(models.Model):
         on_delete=models.CASCADE,
     )
     sequence_number = models.IntegerField("序号")
+    submitted_at = models.DateField("提交时间")
     is_active = models.BooleanField("是否有效", default=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
@@ -95,5 +96,22 @@ class IdeologicalReport(models.Model):
         return f"{self.student} - Report {self.sequence_number}"
 
 
-# 兼容测试导入，别名解决ApplicationRecord找不到
-ApplicationRecord = Student
+# 新增正式入党申请模型，删除原来别名ApplicationRecord=Student，解决Student()参数报错
+class ApplicationRecord(models.Model):
+    student = models.ForeignKey(
+        Student,
+        verbose_name="学生",
+        related_name="application_records",
+        on_delete=models.CASCADE,
+    )
+    applied_at = models.DateField("申请时间")
+    reported_total_count = models.IntegerField("填报总数", default=0)
+    created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        verbose_name = "入党申请记录"
+        verbose_name_plural = "入党申请记录"
+
+    def __str__(self) -> str:
+        return f"ApplicationRecord({self.student}, {self.applied_at})"
