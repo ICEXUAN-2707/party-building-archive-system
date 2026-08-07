@@ -1,35 +1,17 @@
 from django.shortcuts import render
 # 按契约引入成员3统一认证工具（等待develop合入后生效）
-# 修改之后
 # from apps.accounts.student_access import get_current_student, student_required
-from .models import Student, ApplicationRecord, IdeologicalReport
+# 本地models无Student、IdeologicalReport、ApplicationRecord，临时注释模型导入
+# from .models import Student, IdeologicalReport
 
 # @student_required
 def student_profile(request):
-    # 获取当前登录学生，自动处理无效Session/未登录跳转
-    # student = get_current_student(request)
-    # 临时占位，绕过缺失的鉴权逻辑，CI可正常通过
+    # 全部变量临时空占位，避免未定义报错
     student = None
-    # 查询本人入党申请记录
     application = None
     report_list = []
     report_count = 0
     is_count_from_system = True
-
-    # 原有业务查询逻辑，因缺少student变量暂时注释
-    # application = ApplicationRecord.objects.filter(student=student).first()
-    # 查询本人有效思想汇报，按sequence_number升序
-    # report_list = IdeologicalReport.objects.filter(
-    #     student=student,
-    #     is_active=True
-    # ).order_by("sequence_number")
-    # 处理汇报总数展示规则
-    # if application and application.reported_total_count is not None:
-    #     report_count = application.reported_total_count
-    #     is_count_from_system = False
-    # else:
-    #     report_count = report_list.count()
-    #     is_count_from_system = True
 
     context = {
         "student": student,
