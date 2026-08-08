@@ -1,9 +1,5 @@
 from django.db import models
-from django.utils import timezone
-
-
-def get_default_submitted_date():
-    return timezone.now().date()
+from datetime import date
 
 
 class DevelopmentStage(models.TextChoices):
@@ -78,7 +74,6 @@ class Student(models.Model):
         return f"{self.name}（{self.student_number}）"
 
 
-# 思想汇报模型，使用可序列化函数作为日期默认值，修复迁移序列化报错
 class IdeologicalReport(models.Model):
     student = models.ForeignKey(
         Student,
@@ -87,7 +82,7 @@ class IdeologicalReport(models.Model):
         on_delete=models.CASCADE,
     )
     sequence_number = models.IntegerField("序号")
-    submitted_at = models.DateField("提交时间", default=get_default_submitted_date)
+    submitted_at = models.DateField("提交时间", default=date(2024, 1, 1))
     is_active = models.BooleanField("是否有效", default=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
@@ -98,19 +93,18 @@ class IdeologicalReport(models.Model):
         ordering = ["sequence_number"]
 
     def __str__(self) -> str:
-        return f"{self.student} - Report {self.sequence_number}"
+        return f"{self.student} - 第{self.sequence_number}篇汇报"
 
 
-# 独立入党申请模型，删除旧别名 ApplicationRecord=Student，解决TypeError
 class ApplicationRecord(models.Model):
-    student = models.ForeignKey(
+    student = models.OneToOneField(
         Student,
         verbose_name="学生",
-        related_name="application_records",
+        related_name="party_application_record",
         on_delete=models.CASCADE,
     )
     applied_at = models.DateField("申请时间")
-    reported_total_count = models.IntegerField("填报总数", default=0)
+    reported_total_count = models.IntegerField("填报总篇数", null=True, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
@@ -119,4 +113,4 @@ class ApplicationRecord(models.Model):
         verbose_name_plural = "入党申请记录"
 
     def __str__(self) -> str:
-        return f"ApplicationRecord({self.student}, {self.applied_at})"
+        return f"{self.student} 的申请记录"

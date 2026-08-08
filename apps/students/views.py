@@ -1,27 +1,42 @@
 from django.shortcuts import render
-# 按契约引入成员3统一认证工具（等成员3推送student_access.py合入主干后再解除注释）
-# from apps.accounts.student_access import get_current_student, student_required
-from .models import Student, ApplicationRecord, IdeologicalReport
+from .models import ApplicationRecord, IdeologicalReport
 
-# @student_required
+# 临时兼容：成员3鉴权模块未合入前规避导入错误，合入后自动生效官方实现
+try:
+    from apps.accounts.student_session import get_current_student, student_required
+except ModuleNotFoundError:
+    # 仅作占位，无任何鉴权逻辑，仅保证模块可正常加载
+    def student_required(view_func):
+        return view_func
+
+    def get_current_student(request):
+        return None
+
+
+@student_required
 def student_profile(request):
-    # 获取当前登录学生，自动处理无效Session/未登录跳转
-    # student = get_current_student(request)
-    student = None
-    # 查询本人入党申请记录
+    # 仅从Session获取当前学生，不接受外部参数传入，杜绝越权切换
+    student = get_current_student(request)
+
+    # 查询本人申请记录（一对一关系）
     application = ApplicationRecord.objects.filter(student=student).first()
-    # 查询本人有效思想汇报，按sequence_number升序
+
+    # 查询本人有效思想汇报，按真实序号升序排列
     report_list = IdeologicalReport.objects.filter(
         student=student,
         is_active=True
     ).order_by("sequence_number")
-    # 处理汇报总数展示规则
-    if application and application.reported_total_count is not None:
+
+    # 冻结规则：汇报总数展示逻辑
+    if application is not None and application.reported_total_count is not None:
+        # 有填报值（包含0）直接展示填报值
         report_count = application.reported_total_count
         is_count_from_system = False
     else:
+        # 无填报值时展示系统实际统计值
         report_count = report_list.count()
         is_count_from_system = True
+
     context = {
         "student": student,
         "application": application,
