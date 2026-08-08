@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="profile-container">
+    <div class="student-info">
+        <p>姓名：{{ student.name }}</p>
+        <p>学号：{{ student.student_number }}</p>
+        {% if student.branch %}
+        <p>党支部：{{ student.branch.name }}</p>
+        {% endif %}
+    </div>
+
+    {% if application %}
+    <div class="application-info">
+        <p>申请时间：{{ application.applied_at }}</p>
+        <p>汇报总篇数：{{ report_count }}
+        {% if is_count_from_system %}<span>系统统计</span>{% endif %}
+        </p>
+    </div>
+    {% endif %}
+
+    <div class="report-list">
+        {% for report in report_list %}
+        <p>第{{ report.sequence_number }}篇，提交：{{ report.submitted_at }}</p>
+        {% empty %}
+        <p>暂无汇报</p>
+        {% endfor %}
+    </div>
+
+    <form action="{% url 'accounts:student_logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit">退出登录</button>
+    </form>
+</div>
+{% endblock %}
