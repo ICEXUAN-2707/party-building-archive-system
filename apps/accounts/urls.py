@@ -1,13 +1,9 @@
 from django.urls import path
-from . import views
+from django.views.generic import TemplateView
 
 app_name = "accounts"
 
 urlpatterns = [
-    # 学生登录
-    path("login/", views.student_login, name="student_login"),
-    # 管理员登录
-    path("admin-login/", views.admin_login, name="admin_login"),
-    # 学生登出
-    path("logout/", views.student_logout, name="student_logout"),
+    path("student-login/", TemplateView.as_view(template_name="accounts/student_login.html"), name="student_login"),
+    path("admin-login/", TemplateView.as_view(template_name="accounts/admin_login.html"), name="admin_login"),
 ]
