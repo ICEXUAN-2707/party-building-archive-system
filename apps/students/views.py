@@ -31,7 +31,8 @@ def student_profile(request):
     report_list = IdeologicalReport.objects.filter(student=student, is_active=True).order_by("sequence_number")
 
     if application and application.reported_total_count is not None:
-        report_count = application.report_count
+        # 模型没有 report_count，改用模型已有的 reported_total_count
+        report_count = application.reported_total_count
         is_count_from_system = False
     else:
         report_count = report_list.count()
