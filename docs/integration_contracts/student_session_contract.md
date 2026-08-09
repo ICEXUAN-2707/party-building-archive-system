@@ -15,27 +15,27 @@
 
 ```text
 key: student_id
-value: Student 数据库主键
+value: Student 数据库主键（严格正整数类型）
 ```
 
 规则：
 
-1. 登录成功后写入 `request.session["student_id"] = student.id`。
+1. 登录成功后先调用 `request.session.cycle_key()`，再写入 `request.session["student_id"] = student.id`；轮换不得清除管理员认证或其他Session数据。
 2. 当前学生只能由该 Session 值确定。
 3. URL、GET、POST 和隐藏表单字段不得指定或覆盖目标学生 ID。
-4. Session 中的主键不存在时，必须删除 `student_id` 并要求重新登录。
+4. Session 值必须满足 `type(value) is int and value > 0`；数字字符串、布尔值、浮点数、零、负数或不存在的主键必须删除并要求重新登录。
 5. 学生退出只删除 `student_id`，不得调用会清空管理员认证状态的 Session `flush()` 或 Django `logout()`。
 6. 当前冻结规则不依据 `Student.status` 拒绝登录。
 
 ## 3. 提供接口
 
-建议固定在一个公共模块中，例如：
+唯一公共模块固定为：
 
 ```text
 apps/accounts/student_access.py
 ```
 
-若成员3保留 `apps/accounts/decorators.py`，接口名称和行为仍必须与本契约一致，且 Module Notes 必须记录最终导入路径。
+不得保留第二套学生访问保护装饰器或兼容接口。
 
 ### 3.1 `get_current_student(request)`
 
@@ -59,7 +59,7 @@ django.http.HttpRequest
 
 异常：
 
-- 无效、非整数或不存在的 Session 值不得导致 500。
+- 无效、非严格正整数或不存在的 Session 值不得导致 500。
 - 数据库或系统级异常不得静默吞掉。
 
 调用方：成员4学生个人页及其他只读学生端页面。
@@ -113,10 +113,12 @@ def student_profile(request):
 1. 正确姓名和学号写入 `Student.id`。
 2. 错误凭证不写 Session。
 3. 未登录访问受保护页面会重定向。
-4. 失效、非整数和不存在的 Session 值会被清理且不返回 500。
+4. 失效、字符串、布尔值、浮点数、非正整数和不存在的 Session 值会被清理且不返回 500。
 5. 请求参数不能覆盖 Session 身份。
 6. POST 学生退出只删除 `student_id`。
 7. 学生退出后管理员认证状态保持不变。
+8. 登录轮换Session key，同时保留管理员认证状态。
+9. 数据库系统异常不得被当成无效Session静默吞掉。
 
 ## 7. 变更规则
 
