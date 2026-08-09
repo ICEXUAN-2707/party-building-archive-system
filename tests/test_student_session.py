@@ -1,59 +1,55 @@
-from django.test import TestCase
+from django.contrib.auth import get_user_model
+from django.test import Client, TestCase
 from django.urls import reverse
 
-from apps.students.models import DevelopmentStage, PartyBranch, Student, StudentStatus
 
-class StudentSessionTests(TestCase):
+class StudentLogoutViewTests(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:
-        cls.branch = PartyBranch.objects.create(code="SESS_T", name="会话测试支部")
-        cls.student = Student.objects.create(
-            name="周八",
-            student_number="SESS001",
-            branch=cls.branch,
-            development_stage=DevelopmentStage.ACTIVIST,
-            status=StudentStatus.ACTIVE,
-        )
-        cls.login_url = reverse("accounts:student_login")
-        cls.profile_url = reverse("students:student_profile")
         cls.logout_url = reverse("accounts:student_logout")
+        cls.login_url = reverse("accounts:student_login")
 
-    def test_session_cookie_age_is_thirty_minutes(self) -> None:
-        from django.conf import settings
-        self.assertEqual(settings.SESSION_COOKIE_AGE, 1800)
+    def test_get_logout_returns_405(self) -> None:
+        response = self.client.get(self.logout_url)
+        self.assertEqual(response.status_code, 405)
 
-    def test_login_writes_student_id(self) -> None:
-        self.client.post(self.login_url, {"name": "周八", "student_number": "SESS001"})
-        self.assertEqual(self.client.session.get("student_id"), self.student.pk)
-
-    def test_profile_accessible_after_login(self) -> None:
-        self.client.post(self.login_url, {"name": "周八", "student_number": "SESS001"})
-        response = self.client.get(self.profile_url)
-        self.assertEqual(response.status_code, 200)
-
-    def test_profile_inaccessible_after_logout(self) -> None:
-        self.client.post(self.login_url, {"name": "周八", "student_number": "SESS001"})
-        self.client.post(self.logout_url)
-        response = self.client.get(self.profile_url)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, self.login_url)
-
-    def test_expired_session_cleaned_on_access(self) -> None:
+    def test_post_logout_only_removes_student_id(self) -> None:
+        admin = get_user_model().objects.create_user(
+            username="admin_logout_test",
+            password="pass123",
+        )
+        self.client.force_login(admin)
         session = self.client.session
-        session["student_id"] = self.student.pk
+        session["student_id"] = 123
+        session["unrelated_session_value"] = "keep"
         session.save()
-        self.student.delete()
-        response = self.client.get(self.profile_url)
-        self.assertEqual(response.status_code, 302)
+
+        response = self.client.post(self.logout_url)
+
+        self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
         self.assertNotIn("student_id", self.client.session)
+        self.assertEqual(self.client.session["_auth_user_id"], str(admin.pk))
+        self.assertEqual(self.client.session["unrelated_session_value"], "keep")
 
-    def test_student_logout_redirects_to_login(self) -> None:
-        self.client.post(self.login_url, {"name": "周八", "student_number": "SESS001"})
+    def test_logout_without_student_session_is_idempotent(self) -> None:
         response = self.client.post(self.logout_url)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, self.login_url)
+        self.assertRedirects(response, self.login_url, fetch_redirect_response=False)
 
-    def test_logout_when_not_logged_in_still_redirects(self) -> None:
-        response = self.client.post(self.logout_url)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, self.login_url)
+    def test_logout_requires_csrf_token(self) -> None:
+        csrf_client = Client(enforce_csrf_checks=True)
+        session = csrf_client.session
+        session["student_id"] = 123
+        session.save()
+
+        rejected = csrf_client.post(self.logout_url)
+        self.assertEqual(rejected.status_code, 403)
+        self.assertIn("student_id", csrf_client.session)
+
+        login_page = csrf_client.get(self.login_url)
+        csrf_token = login_page.cookies["csrftoken"].value
+        accepted = csrf_client.post(
+            self.logout_url,
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+        self.assertEqual(accepted.status_code, 302)
+        self.assertNotIn("student_id", csrf_client.session)

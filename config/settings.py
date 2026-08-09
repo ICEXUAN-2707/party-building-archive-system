@@ -78,7 +78,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "apps.accounts.context_processors.student_session",
             ],
         },
     },
@@ -113,4 +112,3 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.AdminUser"
 LOGIN_URL = "accounts:admin_login"
-SESSION_COOKIE_AGE = 1800

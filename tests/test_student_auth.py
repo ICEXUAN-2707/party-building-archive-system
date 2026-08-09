@@ -1,7 +1,25 @@
-from django.test import TestCase
-from django.urls import reverse
+from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
+from django.http import HttpResponse
+from django.test import TestCase, override_settings
+from django.urls import include, path, reverse
+
+from apps.accounts.student_access import student_required
 from apps.students.models import DevelopmentStage, PartyBranch, Student, StudentStatus
+
+
+@student_required
+def protected_student_probe(request):
+    """测试专用消费者：返回装饰器验证后的学生主键。"""
+    return HttpResponse(str(request.current_student.pk))
+
+
+urlpatterns = [
+    path("", include("config.urls")),
+    path("__tests__/student-probe/", protected_student_probe, name="student_probe"),
+]
+
 
 class StudentLoginViewTests(TestCase):
     @classmethod
@@ -24,74 +42,66 @@ class StudentLoginViewTests(TestCase):
         cls.login_url = reverse("accounts:student_login")
         cls.profile_url = reverse("students:student_profile")
 
-    def test_correct_credentials_login(self) -> None:
-        response = self.client.post(self.login_url, {"name": "张三", "student_number": "AUTH001"})
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, self.profile_url)
-        self.assertEqual(self.client.session.get("student_id"), self.active_student.pk)
+    def test_correct_credentials_write_integer_student_id(self) -> None:
+        response = self.client.post(
+            self.login_url,
+            {"name": "张三", "student_number": "AUTH001"},
+        )
+        self.assertRedirects(response, self.profile_url, fetch_redirect_response=False)
+        student_id = self.client.session.get("student_id")
+        self.assertIs(type(student_id), int)
+        self.assertEqual(student_id, self.active_student.pk)
 
-    def test_wrong_name_unified_error(self) -> None:
-        response = self.client.post(self.login_url, {"name": "错误", "student_number": "AUTH001"})
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("姓名或学号不正确", response.content.decode())
-        self.assertNotIn("student_id", self.client.session)
+    def test_credentials_are_trimmed(self) -> None:
+        response = self.client.post(
+            self.login_url,
+            {"name": "  张三  ", "student_number": "  AUTH001  "},
+        )
+        self.assertRedirects(response, self.profile_url, fetch_redirect_response=False)
+        self.assertEqual(self.client.session["student_id"], self.active_student.pk)
 
-    def test_wrong_number_unified_error(self) -> None:
-        response = self.client.post(self.login_url, {"name": "张三", "student_number": "WRONG"})
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("姓名或学号不正确", response.content.decode())
-        self.assertNotIn("student_id", self.client.session)
-
-    def test_empty_input_no_session(self) -> None:
-        response = self.client.post(self.login_url, {"name": "", "student_number": ""})
-        self.assertEqual(response.status_code, 200)
-        self.assertNotIn("student_id", self.client.session)
+    def test_wrong_name_and_wrong_number_use_same_error(self) -> None:
+        attempts = (
+            {"name": "错误", "student_number": "AUTH001"},
+            {"name": "张三", "student_number": "WRONG"},
+            {"name": "", "student_number": ""},
+        )
+        for credentials in attempts:
+            with self.subTest(credentials=credentials):
+                response = self.client.post(self.login_url, credentials)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, "姓名或学号不正确")
+                self.assertNotIn("student_id", self.client.session)
 
     def test_inactive_student_can_login(self) -> None:
-        response = self.client.post(self.login_url, {"name": "李四", "student_number": "AUTH002"})
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(self.client.session.get("student_id"), self.inactive_student.pk)
-
-    def test_get_request_shows_form(self) -> None:
-        response = self.client.get(self.login_url)
-        self.assertEqual(response.status_code, 200)
-
-class StudentLogoutViewTests(TestCase):
-    @classmethod
-    def setUpTestData(cls) -> None:
-        cls.branch = PartyBranch.objects.create(code="LOGOUT_T", name="退出测试支部")
-        cls.student = Student.objects.create(
-            name="王五",
-            student_number="LOG001",
-            branch=cls.branch,
-            development_stage=DevelopmentStage.FULL_MEMBER,
-            status=StudentStatus.ACTIVE,
+        response = self.client.post(
+            self.login_url,
+            {"name": "李四", "student_number": "AUTH002"},
         )
-        cls.login_url = reverse("accounts:student_login")
-        cls.logout_url = reverse("accounts:student_logout")
-
-    def test_get_logout_returns_405(self) -> None:
-        response = self.client.get(self.logout_url)
-        self.assertEqual(response.status_code, 405)
-
-    def test_post_logout_deletes_student_id(self) -> None:
-        self.client.post(self.login_url, {"name": "王五", "student_number": "LOG001"})
-        self.assertIn("student_id", self.client.session)
-        response = self.client.post(self.logout_url)
         self.assertEqual(response.status_code, 302)
-        self.assertNotIn("student_id", self.client.session)
+        self.assertEqual(self.client.session["student_id"], self.inactive_student.pk)
 
-    def test_logout_does_not_affect_admin_auth(self) -> None:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        admin = User.objects.create_user(username="admin_test", password="pass123")
-        self.client.login(username="admin_test", password="pass123")
-        self.client.post(self.login_url, {"name": "王五", "student_number": "LOG001"})
-        self.client.post(self.logout_url)
-        self.assertNotIn("student_id", self.client.session)
-        self.assertTrue("_auth_user_id" in self.client.session)
-        self.assertEqual(self.client.session.get("_auth_user_id"), str(admin.pk))
+    def test_login_cycles_session_key_and_preserves_admin_auth(self) -> None:
+        admin = get_user_model().objects.create_user(
+            username="admin_auth_test",
+            password="pass123",
+        )
+        self.client.force_login(admin)
+        session_before = self.client.session
+        old_key = session_before.session_key
 
+        self.client.post(
+            self.login_url,
+            {"name": "张三", "student_number": "AUTH001"},
+        )
+
+        session_after = self.client.session
+        self.assertNotEqual(session_after.session_key, old_key)
+        self.assertEqual(session_after["student_id"], self.active_student.pk)
+        self.assertEqual(session_after["_auth_user_id"], str(admin.pk))
+
+
+@override_settings(ROOT_URLCONF=__name__)
 class StudentAccessTests(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:
@@ -101,46 +111,68 @@ class StudentAccessTests(TestCase):
             student_number="ACC001",
             branch=cls.branch,
             development_stage=DevelopmentStage.ACTIVIST,
-            status=StudentStatus.ACTIVE,
         )
         cls.student_b = Student.objects.create(
             name="孙七",
             student_number="ACC002",
             branch=cls.branch,
             development_stage=DevelopmentStage.PROBATIONARY,
-            status=StudentStatus.ACTIVE,
         )
-        cls.login_url = reverse("accounts:student_login")
-        cls.profile_url = reverse("students:student_profile")
+        cls.probe_url = "/__tests__/student-probe/"
 
-    def test_anonymous_redirected_to_login(self) -> None:
-        response = self.client.get(self.profile_url)
-        self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, self.login_url)
-
-    def test_invalid_session_cleaned_and_redirected(self) -> None:
+    def set_student_session(self, value) -> None:
         session = self.client.session
-        session["student_id"] = 99999999
+        session["student_id"] = value
         session.save()
-        response = self.client.get(self.profile_url)
+
+    def test_anonymous_is_redirected_to_student_login(self) -> None:
+        response = self.client.get(self.probe_url)
+        self.assertRedirects(
+            response,
+            reverse("accounts:student_login"),
+            fetch_redirect_response=False,
+        )
+
+    def test_valid_session_exposes_verified_student(self) -> None:
+        self.set_student_session(self.student_a.pk)
+        response = self.client.get(self.probe_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content.decode(), str(self.student_a.pk))
+
+    def test_invalid_session_values_are_cleaned(self) -> None:
+        invalid_values = ("1", "abc", True, 0, -1, 1.5)
+        for value in invalid_values:
+            with self.subTest(value=value):
+                self.client.cookies.clear()
+                self.set_student_session(value)
+                response = self.client.get(self.probe_url)
+                self.assertEqual(response.status_code, 302)
+                self.assertNotIn("student_id", self.client.session)
+
+    def test_missing_student_is_cleaned(self) -> None:
+        self.set_student_session(99999999)
+        response = self.client.get(self.probe_url)
         self.assertEqual(response.status_code, 302)
         self.assertNotIn("student_id", self.client.session)
 
-    def test_non_integer_session_cleaned(self) -> None:
-        session = self.client.session
-        session["student_id"] = "abc"
-        session.save()
-        response = self.client.get(self.profile_url)
-        self.assertEqual(response.status_code, 302)
-        self.assertNotIn("student_id", self.client.session)
+    def test_get_and_post_parameters_cannot_override_session_identity(self) -> None:
+        self.set_student_session(self.student_a.pk)
+        get_response = self.client.get(
+            self.probe_url,
+            {"student_id": self.student_b.pk},
+        )
+        post_response = self.client.post(
+            self.probe_url,
+            {"student_id": self.student_b.pk},
+        )
+        self.assertEqual(get_response.content.decode(), str(self.student_a.pk))
+        self.assertEqual(post_response.content.decode(), str(self.student_a.pk))
 
-    def test_query_param_cannot_override_session(self) -> None:
-        self.client.post(self.login_url, {"name": "赵六", "student_number": "ACC001"})
-        forged_url = f"{self.profile_url}?student_id={self.student_b.pk}"
-        response = self.client.get(forged_url)
-        self.assertEqual(response.status_code, 200)
-
-    def test_post_param_cannot_override_session(self) -> None:
-        self.client.post(self.login_url, {"name": "赵六", "student_number": "ACC001"})
-        response = self.client.post(self.profile_url, {"student_id": self.student_b.pk})
-        self.assertEqual(response.status_code, 200)
+    def test_database_system_error_is_not_swallowed(self) -> None:
+        self.set_student_session(self.student_a.pk)
+        with patch(
+            "apps.accounts.student_access.Student.objects.select_related",
+            side_effect=RuntimeError("database unavailable"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "database unavailable"):
+                self.client.get(self.probe_url)

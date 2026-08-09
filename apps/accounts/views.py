@@ -1,9 +1,9 @@
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
-from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from apps.accounts.forms import StudentLoginForm
+from apps.accounts.student_access import SESSION_STUDENT_ID_KEY
 from apps.students.models import Student
 
 LOGIN_ERROR_MESSAGE = "姓名或学号不正确"
@@ -23,8 +23,10 @@ def student_login(request: HttpRequest) -> HttpResponse:
                 .first()
             )
             if student is not None:
-                request.session["student_id"] = student.id
-                return redirect(reverse("students:student_profile"))
+                # 轮换会话键防止 Session fixation，同时保留管理员认证数据。
+                request.session.cycle_key()
+                request.session[SESSION_STUDENT_ID_KEY] = student.id
+                return redirect("students:student_profile")
             form.add_error(None, LOGIN_ERROR_MESSAGE)
         else:
             for field_name in list(form.errors.keys()):
@@ -37,5 +39,5 @@ def student_login(request: HttpRequest) -> HttpResponse:
 
 @require_POST
 def student_logout(request: HttpRequest) -> HttpResponse:
-    request.session.pop("student_id", None)
-    return redirect(reverse("accounts:student_login"))
+    request.session.pop(SESSION_STUDENT_ID_KEY, None)
+    return redirect("accounts:student_login")
