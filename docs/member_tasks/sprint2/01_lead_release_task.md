@@ -31,7 +31,7 @@
 
 ## 接口契约
 
-组织冻结`student_profile_contract.md`、`admin_query_contract.md`、`excel_import_contract.md`及回滚数据策略。现有契约只允许经提供方和消费者共同确认后更新。
+第二阶段已冻结`student_profile_contract.md`、`admin_query_contract.md`和`excel_import_contract.md`；`import_rollback_contract.md`为`FROZEN_SPEC / NEED_MODEL_IMPLEMENTATION`。后续职责转为控制契约变更、审查成员7的`ImportChangeRecord`模型与迁移方案，并确保现有契约只在提供方和消费者共同确认后更新。
 
 ## 实施建议
 
@@ -47,4 +47,4 @@
 
 - 所有跨模块调用只有一个正式来源。
 - 合并顺序和最终SHA可追溯。
-- 未冻结的回滚策略不会进入业务代码。
+- 回滚模型、迁移和同事务证据未通过评审前，回滚代码不会进入业务实现。

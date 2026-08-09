@@ -11,7 +11,7 @@
 ## 前置依赖
 
 - `student_session_contract.md`
-- 新增`student_profile_contract.md`
+- 已冻结的`student_profile_contract.md`
 - 当前`develop`中的`Student`和`materials`模型结构；本任务不得修改模型或迁移
 
 ## 允许范围
@@ -33,7 +33,7 @@
 
 ## 接口契约
 
-创建`student_profile_contract.md`，冻结：`request.current_student`身份、页面路由、模板上下文字段、总篇数展示口径和来源、思想汇报过滤与排序、最近更新时间口径、空数据及未登录行为。
+严格实现已冻结`student_profile_contract.md`中的`request.current_student`身份、页面路由、模板上下文字段、总篇数展示口径和来源、思想汇报过滤与排序、最近更新时间口径、空数据及未登录行为。
 
 冻结契约只约束调用方可观察的接口和行为，不冻结实现代码。`select_related()`、`prefetch_related()`及私有辅助函数属于实现与性能要求，可在不改变契约行为的前提下调整。
 
@@ -41,7 +41,7 @@
 
 使用`@student_required`；只从`request.current_student`出发查询`application_record`、`report_summary`、有效`ideological_reports`，避免N+1。不得直接重新解析`request.session["student_id"]`。
 
-个人页至少展示姓名、学号、党支部、发展阶段、职务、状态、申请入党时间、Excel填报总篇数、系统计算日期数、统计来源、思想汇报明细和最近更新时间。`reported_total_count=None`显示“未知”，`reported_total_count=0`显示`0`，不得混淆二者。
+个人页至少展示姓名、学号、党支部、发展阶段、职务、状态、申请入党时间、Excel填报总篇数、系统计算日期数、统计来源、思想汇报明细和最近更新时间。`reported_total_count`非空时展示填报值（包含`0`）；为`None`时回退展示`calculated_date_count`并标注“根据当前已记录提交时间统计”。
 
 ## 必须测试
 
@@ -49,7 +49,7 @@
 - 只能显示当前会话对应的学生。
 - 伪造参数不能越权。
 - 申请记录/汇总/明细完整展示。
-- `reported_total_count=None`与`0`的展示语义正确。
+- `reported_total_count=None`时回退计算数，`0`仍作为有效填报值展示，统计来源正确。
 - 最近更新时间来源符合契约。
 - 无关联数据正常显示。
 - 只显示`is_active=True`并按次数升序。

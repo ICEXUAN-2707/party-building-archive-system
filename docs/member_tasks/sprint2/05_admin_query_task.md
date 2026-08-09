@@ -12,7 +12,7 @@
 
 - `admin_permission_contract.md`
 - 当前`develop`中的`AdminUser`、`AdminRole`、`OperationLog`、`Student`和`materials`模型结构；本任务不得修改模型或迁移
-- 新增`admin_query_contract.md`
+- 已冻结的`admin_query_contract.md`
 
 ## 允许范围
 
@@ -34,7 +34,7 @@
 
 ## 接口契约
 
-实现既有`admin_permission_contract.md`中的唯一权限工具和`record_operation_log()`；新增`admin_query_contract.md`冻结管理员登录与POST退出路由、登录成功与失败行为、筛选、分页、详情、统计来源和响应语义。
+实现既有`admin_permission_contract.md`中的唯一权限工具和`record_operation_log()`；严格实现已冻结`admin_query_contract.md`中的管理员登录与POST退出路由、登录成功与失败行为、筛选、固定20条分页、详情、统计来源和响应语义。
 
 冻结契约不等于冻结代码文件。成员5必须在允许范围内实现契约；内部查询、视图组织和私有辅助函数可调整，但不得改变公共导入路径、角色枚举、权限矩阵和已冻结响应行为。
 
@@ -59,7 +59,7 @@
 - 未登录重定向、未知角色403。
 - viewer_admin导入入口403、data_admin允许。
 - 姓名、学号、支部、阶段、状态及组合筛选。
-- 非法筛选参数不500，分页保留参数。
+- 非法筛选参数返回200、显示错误且结果为空，不得返回未筛选全量数据；分页固定20条并保留参数。
 - 详情404、有效思想汇报过滤、统计来源。
 - 登录、退出、查看详情审计及可信IP规则。
 
