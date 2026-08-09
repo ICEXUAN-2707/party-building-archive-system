@@ -66,11 +66,11 @@ Branch: feature/excel-parser-new
 - valid_rows：允许进入预览和后续确认流程的学生行
 - errors：工作表级或行级错误；对应错误行不得进入 valid_rows
 - warnings：不阻断对应有效行的可追踪问题
-- warning_rows：至少包含一个警告的不同 Excel 数据行数量，不是警告对象总数
+- warning_rows：至少包含一个警告的不同 Excel 数据行数量，不是警告对象总数；表头/工作表级警告不计入
 - skipped_rows：因行级错误未进入 valid_rows 的数据行数量
 - total_rows：所有被识别正式工作表中的非空数据行数量，不包含两行表头
 
-未知工作表记录 UNKNOWN_SHEET，不产生有效学生行；其状态和计数反映在 sheet_results 中。
+未知工作表记录 UNKNOWN_SHEET，不产生有效学生行；其状态为 `unknown`，并计入 `failed_sheets`，因此 `success_sheets + failed_sheets == total_sheets`。
 
 ---
 
@@ -122,7 +122,7 @@ reported_total_count 保存 Excel 原始值并允许为空；calculated_date_cou
 4. 思想汇报列动态识别，不固定列数量。
 5. 中文次数临时支持第一至第二十。
 6. sequence_number 临时支持 1 至 99。
-7. 第二十一次和第 100 次必须产生集中登记的明确错误，不得被备用正则绕过。
+7. 第二十一次和第 100 次必须产生集中登记的明确错误，不得被备用正则绕过；含越界思想汇报列的工作表解析失败，其他工作表继续。
 8. 非法总篇数不能与空值混为 None，产生 ERROR_REPORT_TOTAL_INVALID 错误。
 9. 缺少总篇数列属于工作表级警告，只记录一次。
 10. 错误行整行跳过；警告行仍可进入 valid_rows。
@@ -172,6 +172,7 @@ reported_total_count 保存 Excel 原始值并允许为空；calculated_date_cou
 | WARNING_REPORT_COUNT_MISMATCH | REPORT_COUNT_MISMATCH | 总篇数与有效日期数不一致 |
 | WARNING_REPORT_TOTAL_COLUMN_MISSING | REPORT_TOTAL_COLUMN_MISSING | 缺少总篇数列（工作表级，只一次） |
 | WARNING_REPORT_DATE_INVALID | REPORT_DATE_INVALID | 思想汇报日期无法解析 |
+| WARNING_REPORT_DATE_SEQUENCE_INCONSISTENT | REPORT_DATE_SEQUENCE_INCONSISTENT | 思想汇报次数顺序与日期顺序不一致 |
 
 ---
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as _dt
 from pathlib import Path
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from apps.imports.date_utils import (
     parse_date,
@@ -1102,6 +1102,8 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
             self.assertEqual(len(result.sheet_results), 1)
             self.assertEqual(result.sheet_results[0].status, "unknown")
             self.assertEqual(result.sheet_results[0].valid_row_count, 0)
+            self.assertEqual(result.failed_sheets, 1)
+            self.assertEqual(result.success_sheets + result.failed_sheets, result.total_sheets)
 
     # ------------------------- 场景 5：前两行合法表头识别 -------------------------
     def test_scenario_05_header_first_two_rows(self) -> None:
@@ -1123,6 +1125,25 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
             self.assertEqual(row.name, "张三")
             self.assertEqual(row.student_number, "20230001")
 
+    def test_scenario_05b_header_in_first_row_is_supported(self) -> None:
+        with _MiniWorkbook() as twb:
+            ws = twb.workbook.create_sheet(title="明理党支部")
+            ws.append(_standard_header_row2())
+            ws.append(["字段说明"] * len(_standard_header_row2()))
+            ws.append(
+                [
+                    "20230001", "张三", "正式党员", "", "2025/01/10",
+                    1, "2025/03/01", None, None,
+                ]
+            )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+
+            self.assertEqual(len(result.valid_rows), 1)
+            self.assertEqual(result.valid_rows[0].excel_row_number, 3)
+            self.assertEqual(result.valid_rows[0].name, "张三")
+
     # ------------------------- 场景 6：第99次成功、第100次明确失败 -------------------------
     def test_scenario_06_arabic_99_ok_100_fail(self) -> None:
         with _MiniWorkbook() as twb:
@@ -1137,12 +1158,15 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
             twb.workbook.save(twb.path)
 
             result = parse_workbook(Path(twb.path))
-            self.assertEqual(len(result.valid_rows), 1)
-            row = result.valid_rows[0]
-            seqs = {r.sequence_number for r in row.report_items}
-            self.assertIn(99, seqs)
-            self.assertNotIn(100, seqs)
-            self.assertEqual(row.calculated_date_count, 1)
+            self.assertEqual(result.valid_rows, [])
+            self.assertEqual(result.failed_sheets, 1)
+            self.assertTrue(
+                any(
+                    e.code == ERROR_REPORT_COLUMN_SEQUENCE_OUT_OF_RANGE
+                    and e.source_value == "第100次思想汇报"
+                    for e in result.errors
+                )
+            )
 
     # ------------------------- 场景 7：第二十次成功、第二十一次失败 -------------------------
     def test_scenario_07_chinese_20_ok_21_fail(self) -> None:
@@ -1158,12 +1182,15 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
             twb.workbook.save(twb.path)
 
             result = parse_workbook(Path(twb.path))
-            self.assertEqual(len(result.valid_rows), 1)
-            row = result.valid_rows[0]
-            seqs = {r.sequence_number for r in row.report_items}
-            self.assertIn(20, seqs)
-            self.assertNotIn(21, seqs)
-            self.assertEqual(row.calculated_date_count, 1)
+            self.assertEqual(result.valid_rows, [])
+            self.assertEqual(result.failed_sheets, 1)
+            self.assertTrue(
+                any(
+                    e.code == ERROR_REPORT_COLUMN_INVALID_CHINESE
+                    and e.source_value == "第二十一次思想汇报"
+                    for e in result.errors
+                )
+            )
 
     # ------------------------- 场景 8：非法总篇数与空值结果不同 -------------------------
     def test_scenario_08_invalid_total_vs_empty(self) -> None:
@@ -1185,6 +1212,26 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
             self.assertEqual(row.name, "李四")
             self.assertIsNone(row.reported_total_count)
             self.assertFalse(any(r.name == "张三" for r in result.valid_rows))
+            self.assertTrue(
+                any(e.code == error_codes.ERROR_REPORT_TOTAL_INVALID for e in result.errors)
+            )
+
+    def test_scenario_08b_negative_total_is_invalid(self) -> None:
+        with _MiniWorkbook() as twb:
+            _append_sheet(
+                twb.workbook,
+                title="明理党支部",
+                header_row2=_standard_header_row2(),
+                data_rows=[
+                    ["20230001", "张三", "正式党员", "", "2025/01/10", -1, None, None, None],
+                ],
+            )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+
+            self.assertEqual(result.valid_rows, [])
+            self.assertEqual(result.skipped_rows, 1)
             self.assertTrue(
                 any(e.code == error_codes.ERROR_REPORT_TOTAL_INVALID for e in result.errors)
             )
@@ -1212,12 +1259,106 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
             ]
             self.assertEqual(len(missing_warnings), 1)
             self.assertEqual(missing_warnings[0].excel_row_number, 2)
+            self.assertEqual(result.warning_rows, 0)
+
+    def test_scenario_09b_blank_rows_are_not_data_or_errors(self) -> None:
+        with _MiniWorkbook() as twb:
+            _append_sheet(
+                twb.workbook,
+                title="明理党支部",
+                header_row2=_standard_header_row2(),
+                data_rows=[
+                    ["20230001", "张三", "正式党员", "", "2025/01/10", 0, None, None, None],
+                    [None] * len(_standard_header_row2()),
+                ],
+            )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+
+            self.assertEqual(result.total_rows, 1)
+            self.assertEqual(result.success_rows, 1)
+            self.assertEqual(result.skipped_rows, 0)
+
+    def test_scenario_09c_multiple_errors_on_one_row_count_as_one_skip(self) -> None:
+        with _MiniWorkbook() as twb:
+            _append_sheet(
+                twb.workbook,
+                title="明理党支部",
+                header_row2=_standard_header_row2(),
+                data_rows=[
+                    [None, None, None, "", None, None, None, None, None],
+                ],
+            )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+
+            # 全空行不是数据行，也不产生跳过计数。
+            self.assertEqual(result.total_rows, 0)
+            self.assertEqual(result.skipped_rows, 0)
+
+    def test_report_date_sequence_inconsistency_is_a_row_warning(self) -> None:
+        with _MiniWorkbook() as twb:
+            _append_sheet(
+                twb.workbook,
+                title="明理党支部",
+                header_row2=_standard_header_row2(),
+                data_rows=[
+                    [
+                        "20230001", "张三", "正式党员", "", "2025/01/10",
+                        2, "2025/06/01", "2025/03/01", None,
+                    ],
+                ],
+            )
+            twb.workbook.save(twb.path)
+
+            result = parse_workbook(Path(twb.path))
+
+            self.assertEqual(result.success_rows, 1)
+            self.assertEqual(result.warning_rows, 1)
+            self.assertTrue(
+                any(
+                    warning.code
+                    == error_codes.WARNING_REPORT_DATE_SEQUENCE_INCONSISTENT
+                    for warning in result.warnings
+                )
+            )
 
     # ------------------------- 场景 10：文件不存在抛 FileNotFoundError -------------------------
     def test_scenario_10_file_not_found(self) -> None:
         fake_path = Path("nonexistent_file_for_test_12345.xlsx")
         with self.assertRaises(FileNotFoundError):
             parse_workbook(fake_path)
+
+    def test_scenario_10b_damaged_workbook_raises_system_exception(self) -> None:
+        import os
+        import tempfile
+        from zipfile import BadZipFile
+
+        file_descriptor, damaged_path = tempfile.mkstemp(suffix=".xlsx")
+        try:
+            with os.fdopen(file_descriptor, "wb") as damaged:
+                damaged.write(b"not an xlsx archive")
+            with self.assertRaises(BadZipFile):
+                parse_workbook(Path(damaged_path))
+        finally:
+            os.remove(damaged_path)
+
+    def test_workbook_is_closed_when_iteration_raises(self) -> None:
+        from unittest.mock import Mock, patch
+
+        fake_workbook = Mock()
+        fake_workbook.sheetnames = ["明理党支部"]
+        fake_sheet = Mock()
+        fake_sheet.iter_rows.side_effect = RuntimeError("iteration failed")
+        fake_workbook.__getitem__ = Mock(return_value=fake_sheet)
+
+        with patch("apps.imports.parser.load_workbook", return_value=fake_workbook):
+            with self.assertRaisesRegex(RuntimeError, "iteration failed"):
+                parse_workbook(Path(__file__))
+
+        fake_workbook.close.assert_called_once_with()
 
     # ------------------------- 场景 11：解析前后数据库不变 -------------------------
     def test_scenario_11_no_database_side_effects(self) -> None:
@@ -1245,3 +1386,41 @@ class OpenpyxlIntegrationTests(SimpleTestCase):
         self.assertNotIn("Student", keys_after)
         self.assertNotIn("ImportBatch", keys_after)
         self.assertNotIn("models", keys_after)
+
+
+class ParserDatabaseSideEffectTests(TestCase):
+    def test_core_database_records_are_unchanged(self) -> None:
+        from apps.imports.models import ImportBatch, ImportErrorRecord, ImportWarningRecord
+        from apps.materials.models import (
+            ApplicationRecord,
+            IdeologicalReport,
+            IdeologicalReportSummary,
+        )
+        from apps.students.models import PartyBranch, Student
+
+        model_classes = (
+            PartyBranch,
+            Student,
+            ApplicationRecord,
+            IdeologicalReportSummary,
+            IdeologicalReport,
+            ImportBatch,
+            ImportErrorRecord,
+            ImportWarningRecord,
+        )
+        counts_before = {model: model.objects.count() for model in model_classes}
+
+        with _MiniWorkbook() as twb:
+            _append_sheet(
+                twb.workbook,
+                title="明理党支部",
+                header_row2=_standard_header_row2(),
+                data_rows=[
+                    ["20230001", "张三", "正式党员", "", "2025/01/10", 1, "2025/03/01", None, None],
+                ],
+            )
+            twb.workbook.save(twb.path)
+            parse_workbook(Path(twb.path))
+
+        counts_after = {model: model.objects.count() for model in model_classes}
+        self.assertEqual(counts_after, counts_before)

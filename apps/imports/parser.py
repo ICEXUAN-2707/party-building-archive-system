@@ -35,6 +35,9 @@ ERROR_REPORT_COLUMN_INVALID_CHINESE = error_codes.ERROR_REPORT_COLUMN_INVALID_CH
 WARNING_REPORT_COUNT_MISMATCH = error_codes.WARNING_REPORT_COUNT_MISMATCH
 WARNING_REPORT_TOTAL_COLUMN_MISSING = error_codes.WARNING_REPORT_TOTAL_COLUMN_MISSING
 WARNING_REPORT_DATE_INVALID = error_codes.WARNING_REPORT_DATE_INVALID
+WARNING_REPORT_DATE_SEQUENCE_INCONSISTENT = (
+    error_codes.WARNING_REPORT_DATE_SEQUENCE_INCONSISTENT
+)
 ERROR_UNKNOWN_SHEET = error_codes.ERROR_UNKNOWN_SHEET
 
 ALL_ERROR_CODES = error_codes.ALL_ERROR_CODES
@@ -53,6 +56,7 @@ _MSG_ROW_INVALID_APPLIED_DATE = "申请入党时间格式错误"
 _MSG_REPORT_COUNT_MISMATCH_TEMPLATE = "思想汇报总篇数填报({reported})与系统计算({calculated})不一致"
 _MSG_REPORT_TOTAL_COLUMN_MISSING = "缺少【思想汇报总篇数】列，无法校验总篇数"
 _MSG_REPORT_DATE_INVALID_TEMPLATE = "思想汇报【{source_column}】日期无法解析，已跳过"
+_MSG_REPORT_DATE_SEQUENCE_INCONSISTENT = "思想汇报次数顺序与提交日期顺序不一致"
 
 NAME_ALIASES: tuple[str, ...] = ("姓名", "学生姓名", "名字")
 STUDENT_NUMBER_ALIASES: tuple[str, ...] = ("学号", "学生学号", "学生编号", "学号/工号")
@@ -82,8 +86,6 @@ REPORTED_TOTAL_COUNT_ALIASES: tuple[str, ...] = (
     "思想汇报总次数",
     "总篇数",
 )
-
-REPORT_COLUMN_ARABIC_PATTERN = re.compile(r"^\s*第\s*(\d+)\s*次\s*思想汇报\s*$")
 
 NINE_PARTY_BRANCHES: dict[str, tuple[str, str]] = {
     "明理党支部": ("MINGLI", "明理党支部"),
@@ -149,7 +151,7 @@ class HeaderParseResult:
     ok: bool
     error_code: str | None = None
     error_message: str | None = None
-    unknown_columns: list[tuple[int, str]] = field(default_factory=list)
+    report_column_errors: list[tuple[int, str, str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -199,17 +201,6 @@ def _find_col_index(
     return None
 
 
-def _build_report_column_from_name(column_name: str, column_index: int) -> ReportColumn | None:
-    parsed = parse_report_sequence(column_name)
-    if parsed.ok and parsed.sequence_number is not None:
-        return ReportColumn(
-            sequence_number=parsed.sequence_number,
-            column_index=column_index,
-            source_column_name=parsed.source_column_name,
-        )
-    return None
-
-
 def parse_header_row(header_row: list[object]) -> HeaderParseResult:
     cells = [_normalize(c) for c in header_row]
 
@@ -221,6 +212,7 @@ def parse_header_row(header_row: list[object]) -> HeaderParseResult:
     reported_total_count_col = _find_col_index(cells, REPORTED_TOTAL_COUNT_ALIASES)
 
     report_columns: list[ReportColumn] = []
+    report_column_errors: list[tuple[int, str, str, str]] = []
     known_indices: set[int] = {
         i
         for i in (
@@ -237,9 +229,24 @@ def parse_header_row(header_row: list[object]) -> HeaderParseResult:
     for idx, cell in enumerate(cells):
         if idx in known_indices or not cell:
             continue
-        rc = _build_report_column_from_name(cell, idx)
-        if rc is not None:
-            report_columns.append(rc)
+        parsed_report = parse_report_sequence(cell)
+        if parsed_report.ok and parsed_report.sequence_number is not None:
+            report_columns.append(
+                ReportColumn(
+                    sequence_number=parsed_report.sequence_number,
+                    column_index=idx,
+                    source_column_name=parsed_report.source_column_name,
+                )
+            )
+        elif re.match(r"^\s*第.+次\s*(?:思想汇报)?\s*$", cell):
+            report_column_errors.append(
+                (
+                    idx,
+                    cell,
+                    parsed_report.error_code or ERROR_REPORT_COLUMN_NO_MATCH,
+                    parsed_report.error_message or ERROR_MESSAGES[ERROR_REPORT_COLUMN_NO_MATCH],
+                )
+            )
 
     report_columns.sort(key=lambda r: r.sequence_number)
 
@@ -254,7 +261,11 @@ def parse_header_row(header_row: list[object]) -> HeaderParseResult:
     )
 
     if mapping.has_core_fields():
-        return HeaderParseResult(mapping=mapping, ok=True)
+        return HeaderParseResult(
+            mapping=mapping,
+            ok=True,
+            report_column_errors=report_column_errors,
+        )
 
     missing = mapping.missing_core_fields()
     messages: list[str] = []
@@ -505,7 +516,9 @@ def parse_student_row(
 
     reported_total_count = _parse_int_or_none(reported_total_raw)
     reported_total_raw_text = _normalize(reported_total_raw) if reported_total_raw is not None else ""
-    if reported_total_raw_text and reported_total_count is None:
+    if reported_total_raw_text and (
+        reported_total_count is None or reported_total_count < 0
+    ):
         append_error(
             error_codes.ERROR_REPORT_TOTAL_INVALID,
             f"思想汇报总篇数非法：{reported_total_raw_text}",
@@ -547,6 +560,23 @@ def parse_student_row(
             )
 
     calculated_date_count = len(report_items)
+
+    submitted_dates = [item.submitted_at for item in report_items]
+    if any(
+        current < previous
+        for previous, current in zip(submitted_dates, submitted_dates[1:])
+    ):
+        warnings.append(
+            ParseWarning(
+                code=WARNING_REPORT_DATE_SEQUENCE_INCONSISTENT,
+                message=_MSG_REPORT_DATE_SEQUENCE_INCONSISTENT,
+                sheet_name=sheet_name,
+                excel_row_number=excel_row_number,
+                student_name=name,
+                student_number=student_number,
+                field_name="report_items",
+            )
+        )
 
     if reported_total_count is not None and calculated_date_count != reported_total_count:
         warnings.append(
@@ -595,6 +625,8 @@ def parse_sheet_rows(
     sheet = SheetParseResult()
     for offset, row in enumerate(data_rows):
         excel_row_number = start_excel_row_number + offset
+        if not any(cell is not None and _normalize(cell) for cell in row):
+            continue
         outcome = parse_student_row(
             row_values=row,
             mapping=mapping,
@@ -685,18 +717,32 @@ def parse_workbook(file_path: Path) -> ParseResult:
                 )
                 continue
 
-            header_result = parse_header_row(rows[1])
+            # 第二行是标准表头；如第二行不合法，再检查第一行。绝不扫描数据行。
+            header_row_index = 1
+            header_result = parse_header_row(rows[header_row_index])
             if not header_result.ok:
+                first_row_result = parse_header_row(rows[0])
+                if first_row_result.ok:
+                    header_row_index = 0
+                    header_result = first_row_result
+            if not header_result.ok:
+                non_empty_data_rows = sum(
+                    1
+                    for row in rows[2:]
+                    if any(cell is not None and _normalize(cell) for cell in row)
+                )
                 result.errors.append(
                     ParseError(
                         code=header_result.error_code or ERROR_HEADER_NOT_FOUND,
                         message=header_result.error_message or ERROR_MESSAGES[ERROR_HEADER_NOT_FOUND],
                         sheet_name=title,
-                        excel_row_number=2,
+                        excel_row_number=header_row_index + 1,
                         student_name="",
                         student_number="",
                         field_name="header",
-                        source_value=" | ".join(str(c) for c in rows[1]),
+                        source_value=" | ".join(
+                            str(c) for c in rows[header_row_index]
+                        ),
                     )
                 )
                 result.sheet_results.append(
@@ -705,7 +751,7 @@ def parse_workbook(file_path: Path) -> ParseResult:
                         branch_code=branch_code,
                         branch_name=branch_name,
                         status="failed",
-                        total_rows=0,
+                        total_rows=non_empty_data_rows,
                         valid_row_count=0,
                         error_count=1,
                         warning_count=0,
@@ -714,7 +760,40 @@ def parse_workbook(file_path: Path) -> ParseResult:
                 continue
 
             mapping = header_result.mapping
+            header_errors = [
+                ParseError(
+                    code=code,
+                    message=message,
+                    sheet_name=title,
+                    excel_row_number=header_row_index + 1,
+                    field_name=f"column:{column_index + 1}",
+                    source_value=source_value,
+                )
+                for column_index, source_value, code, message
+                in header_result.report_column_errors
+            ]
             data_rows = rows[2:]
+            non_empty_data_rows = sum(
+                1
+                for row in data_rows
+                if any(cell is not None and _normalize(cell) for cell in row)
+            )
+            if header_errors:
+                result.errors.extend(header_errors)
+                result.sheet_results.append(
+                    SheetResult(
+                        sheet_name=title,
+                        branch_code=branch_code,
+                        branch_name=branch_name,
+                        status="failed",
+                        total_rows=non_empty_data_rows,
+                        valid_row_count=0,
+                        error_count=len(header_errors),
+                        warning_count=0,
+                    )
+                )
+                continue
+
             sheet_parse = parse_sheet_rows(
                 data_rows=data_rows,
                 mapping=mapping,
@@ -741,7 +820,6 @@ def parse_workbook(file_path: Path) -> ParseResult:
                     )
                 )
 
-            non_empty_data_rows = sum(1 for r in data_rows if any(c is not None and str(c).strip() != "" for c in r))
             row_level_errors = len(sheet_parse.errors)
             sheet_warnings = len(sheet_parse.warnings)
             sheet_status = "success" if len(sheet_parse.valid_rows) > 0 or non_empty_data_rows == 0 else "failed"
@@ -764,18 +842,23 @@ def parse_workbook(file_path: Path) -> ParseResult:
 
         result.total_rows = sum(s.total_rows for s in result.sheet_results if s.status != "unknown")
         result.success_rows = len(result.valid_rows)
-        row_level_error_codes = {
-            ERROR_ROW_MISSING_REQUIRED,
-            ERROR_ROW_INVALID_STAGE,
-            ERROR_ROW_INVALID_APPLIED_DATE,
-            ERROR_ROW_COLUMN_SHIFT_SUSPECTED,
-        }
-        result.skipped_rows = sum(1 for e in result.errors if e.code in row_level_error_codes)
+        result.skipped_rows = len(
+            {
+                (error.sheet_name, error.excel_row_number)
+                for error in result.errors
+                if error.excel_row_number is not None
+                and error.excel_row_number >= 3
+                and error.field_name not in {"header", "sheet"}
+            }
+        )
         result.warning_rows = len({
-            (w.sheet_name, w.excel_row_number) for w in result.warnings
+            (warning.sheet_name, warning.excel_row_number)
+            for warning in result.warnings
+            if warning.excel_row_number is not None
+            and warning.excel_row_number >= 3
         })
         result.success_sheets = sum(1 for s in result.sheet_results if s.status == "success")
-        result.failed_sheets = sum(1 for s in result.sheet_results if s.status == "failed")
+        result.failed_sheets = sum(1 for s in result.sheet_results if s.status != "success")
 
         return result
     finally:
