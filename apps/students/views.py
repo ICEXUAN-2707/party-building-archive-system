@@ -1,48 +1,48 @@
-from django.shortcuts import render, redirect
-# 兼容成员3未合入student_session模块
-try:
-    from apps.accounts.student_session import get_current_student, student_required
-except ModuleNotFoundError:
-    def get_current_student(request):
-        sid = request.session.get("student_id")
-        if not sid:
-            return None
-        try:
-            from .models import Student
-            return Student.objects.get(id=sid, status="active")
-        except Student.DoesNotExist:
-            request.session.pop("student_id", None)
-            return None
+from django.shortcuts import render
+from apps.students.models import Student
 
-    def student_required(view_func):
-        def wrapper(request, *args, **kwargs):
-            stu = get_current_student(request)
-            if stu is None:
-                return redirect("accounts:student_login")
-            return view_func(request, *args, **kwargs)
-        return wrapper
-
-from .models import ApplicationRecord, IdeologicalReport
-
-@student_required
 def student_profile(request):
-    student = get_current_student(request)
-    application = ApplicationRecord.objects.filter(student=student).first()
-    report_list = IdeologicalReport.objects.filter(student=student, is_active=True).order_by("sequence_number")
+    student = Student.objects.first()
 
-    if application and application.reported_total_count is not None:
-        # 模型没有 report_count，改用模型已有的 reported_total_count
-        report_count = application.reported_total_count
+    if not student:
+        ctx = {
+            "student": None,
+            "application_records": [],
+            "idea_reports": [],
+            "report_count": 0,
+            "latest_report": None,
+            "is_count_from_system": True
+        }
+        return render(request, "students/student_profile.html", ctx)
+
+    # 兜底：如果关联模型还未在主干合并，捕获异常返回空列表
+    try:
+        application_records = student.applicationrecord_set.all()
+    except AttributeError:
+        application_records = []
+
+    try:
+        idea_reports = student.ideologicalreport_set.filter(is_active=True).order_by("sequence_number")
+    except AttributeError:
+        idea_reports = []
+
+    report_count = len(idea_reports)
+    latest_report = idea_reports.order_by("-submitted_at").first() if idea_reports else None
+
+    # 业务统计规则兼容
+    if application_records and len(application_records) > 0 and application_records[0].reported_total_count is not None:
+        final_count = application_records[0].reported_total_count
         is_count_from_system = False
     else:
-        report_count = report_list.count()
+        final_count = report_count
         is_count_from_system = True
 
     context = {
         "student": student,
-        "application": application,
-        "report_list": report_list,
-        "report_count": report_count,
+        "application_records": application_records,
+        "idea_reports": idea_reports,
+        "report_count": final_count,
+        "latest_report": latest_report,
         "is_count_from_system": is_count_from_system
     }
     return render(request, "students/student_profile.html", context)

@@ -1,34 +1,62 @@
 {% extends "base.html" %}
+
+{% block title %}我的学生档案{% endblock %}
+
 {% block content %}
-<div class="profile-container">
-    <div class="student-info">
-        <p>姓名：{{ student.name }}</p>
-        <p>学号：{{ student.student_number }}</p>
-        {% if student.branch %}
-        <p>党支部：{{ student.branch.name }}</p>
-        {% endif %}
+<div class="container mt-4">
+    <h2>个人党务档案</h2>
+    <hr>
+
+    <!-- 基础信息 -->
+    <div class="card mb-3">
+        <div class="card-header">基础信息</div>
+        <div class="card-body">
+            <p>姓名：{{ student.name }}</p>
+            <p>学号：{{ student.student_number }}</p>
+            <p>支部：{{ student.branch.name|default:"未分配" }}</p>
+            <p>发展阶段：{{ student.get_development_stage_display }}</p>
+        </div>
     </div>
 
-    {% if application %}
-    <div class="application-info">
-        <p>申请时间：{{ application.applied_at }}</p>
-        <p>汇报总篇数：{{ report_count }}
-        {% if is_count_from_system %}<span>系统统计</span>{% endif %}
-        </p>
-    </div>
-    {% endif %}
-
-    <div class="report-list">
-        {% for report in report_list %}
-        <p>第{{ report.sequence_number }}篇，提交：{{ report.submitted_at }}</p>
-        {% empty %}
-        <p>暂无汇报</p>
-        {% endfor %}
+    <!-- 入党申请记录 -->
+    <div class="card mb-3">
+        <div class="card-header">入党申请</div>
+        <div class="card-body">
+            {% if application_records %}
+                {% for item in application_records %}
+                <p>提交时间：{{ item.applied_at }}</p>
+                <p>填报汇报总数：{{ item.reported_total_count|default:"未填写" }}</p>
+                {% endfor %}
+            {% else %}
+                <p class="text-secondary">暂无入党申请记录</p>
+            {% endif %}
+        </div>
     </div>
 
-    <form action="{% url 'accounts:student_logout' %}" method="post">
-        {% csrf_token %}
-        <button type="submit">退出登录</button>
-    </form>
+    <!-- 思想汇报 -->
+    <div class="card">
+        <div class="card-header">
+            思想汇报 总计{{ report_count }}篇
+            {% if latest_report %}
+                <span class="text-muted ms-3">最新提交：{{ latest_report.submitted_at }}</span>
+            {% endif %}
+            {% if is_count_from_system %}
+                <span class="text-info ms-2">（系统自动统计）</span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            {% if idea_reports %}
+            <ul class="list-group">
+                {% for report in idea_reports %}
+                <li class="list-group-item">
+                    第{{ report.sequence_number }}篇 — {{ report.submitted_at }}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-secondary">暂无有效思想汇报</p>
+            {% endif %}
+        </div>
+    </div>
 </div>
 {% endblock %}
