@@ -21,6 +21,14 @@
           <li class="nav-item"><a class="nav-link" href="{% url 'accounts:admin_login' %}">管理员登录</a></li>
           <li class="nav-item"><a class="nav-link" href="{% url 'imports:upload' %}">Excel上传</a></li>
           <li class="nav-item"><a class="nav-link" href="/admin/">Django Admin</a></li>
+          {% if request.session.student_id %}
+          <li class="nav-item">
+            <form method="POST" action="{% url 'accounts:student_logout' %}" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="nav-link btn btn-link">退出</button>
+            </form>
+          </li>
+          {% endif %}
         </ul>
       </div>
     </div>
