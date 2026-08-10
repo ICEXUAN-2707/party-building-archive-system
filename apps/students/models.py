@@ -1,5 +1,4 @@
 from django.db import models
-from datetime import date
 
 
 class DevelopmentStage(models.TextChoices):
@@ -37,8 +36,6 @@ class Student(models.Model):
         verbose_name="党支部",
         related_name="students",
         on_delete=models.PROTECT,
-        null=True,
-        blank=True,
     )
     development_stage = models.CharField("发展阶段", max_length=32, choices=DevelopmentStage.choices)
     position = models.CharField("职务", max_length=128, blank=True)
@@ -72,45 +69,3 @@ class Student(models.Model):
 
     def __str__(self) -> str:
         return f"{self.name}（{self.student_number}）"
-
-
-class IdeologicalReport(models.Model):
-    student = models.ForeignKey(
-        Student,
-        verbose_name="学生",
-        related_name="reports",
-        on_delete=models.CASCADE,
-    )
-    sequence_number = models.IntegerField("序号")
-    submitted_at = models.DateField("提交时间", default=date(2024, 1, 1))
-    is_active = models.BooleanField("是否有效", default=True)
-    created_at = models.DateTimeField("创建时间", auto_now_add=True)
-    updated_at = models.DateTimeField("更新时间", auto_now=True)
-
-    class Meta:
-        verbose_name = "思想汇报"
-        verbose_name_plural = "思想汇报"
-        ordering = ["sequence_number"]
-
-    def __str__(self) -> str:
-        return f"{self.student} - 第{self.sequence_number}篇汇报"
-
-
-class ApplicationRecord(models.Model):
-    student = models.OneToOneField(
-        Student,
-        verbose_name="学生",
-        related_name="party_application_record",
-        on_delete=models.CASCADE,
-    )
-    applied_at = models.DateField("申请时间")
-    reported_total_count = models.IntegerField("填报总篇数", null=True, blank=True)
-    created_at = models.DateTimeField("创建时间", auto_now_add=True)
-    updated_at = models.DateTimeField("更新时间", auto_now=True)
-
-    class Meta:
-        verbose_name = "入党申请记录"
-        verbose_name_plural = "入党申请记录"
-
-    def __str__(self) -> str:
-        return f"{self.student} 的申请记录"
