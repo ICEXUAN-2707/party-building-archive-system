@@ -20,10 +20,13 @@ REQUIRED_PROJECT_FILES: tuple[str, ...] = (
     "docs/spec.md",
     "manage.py",
     "requirements.txt",
+    "scripts/ci_database_cleanup.py",
 )
 
 # 该清单只登记已经进入develop基线的测试，后续模块合入后由CI-03扩充。
 REQUIRED_TEST_FILES: tuple[str, ...] = (
+    "tests/test_ci_database_cleanup.py",
+    "tests/test_ci_guard.py",
     "tests/test_foundation.py",
     "tests/test_settings.py",
 )
@@ -78,6 +81,12 @@ IGNORED_DIRECTORY_NAMES: frozenset[str] = frozenset(
         "htmlcov",
         "venv",
     }
+)
+
+CI_SQLITE_ARTIFACT_NAMES: tuple[str, ...] = tuple(
+    f"{database_name}{suffix}"
+    for database_name in ("ci.sqlite3", "test_ci.sqlite3")
+    for suffix in ("", "-journal", "-wal", "-shm")
 )
 
 
@@ -219,7 +228,28 @@ def find_post_test_artifacts(root: Path) -> list[Problem]:
     return problems
 
 
-def collect_problems(root: Path, *, post_test: bool = False) -> list[Problem]:
+def find_ci_temp_database_artifacts(temp_dir: Path) -> list[Problem]:
+    """Report only the fixed SQLite artifacts owned by the CI workflow."""
+    problems: list[Problem] = []
+    for artifact_name in CI_SQLITE_ARTIFACT_NAMES:
+        artifact_path = temp_dir / artifact_name
+        if artifact_path.exists():
+            problems.append(
+                Problem(
+                    "ci-temp-database-artifact",
+                    artifact_path.as_posix(),
+                    "CI SQLite artifact was not cleaned up",
+                )
+            )
+    return problems
+
+
+def collect_problems(
+    root: Path,
+    *,
+    post_test: bool = False,
+    temp_dir: Path | None = None,
+) -> list[Problem]:
     tracked_files = get_tracked_files(root)
     problems = find_missing_required_files(root, REQUIRED_PROJECT_FILES)
     problems.extend(find_missing_required_files(root, REQUIRED_TEST_FILES))
@@ -227,6 +257,8 @@ def collect_problems(root: Path, *, post_test: bool = False) -> list[Problem]:
     problems.extend(find_absolute_paths(root, tracked_files))
     if post_test:
         problems.extend(find_post_test_artifacts(root))
+    if temp_dir is not None:
+        problems.extend(find_ci_temp_database_artifacts(temp_dir))
     return problems
 
 
@@ -237,13 +269,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="also check for database, Excel, upload, and backup artifacts left by tests",
     )
+    parser.add_argument(
+        "--temp-dir",
+        type=Path,
+        help="also check the named CI temporary directory for fixed SQLite artifacts",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        problems = collect_problems(PROJECT_ROOT, post_test=args.post_test)
+        problems = collect_problems(
+            PROJECT_ROOT,
+            post_test=args.post_test,
+            temp_dir=args.temp_dir,
+        )
     except (OSError, subprocess.SubprocessError) as exc:
         print(f"[ERROR] ci-guard: {exc}", file=sys.stderr)
         return 2
