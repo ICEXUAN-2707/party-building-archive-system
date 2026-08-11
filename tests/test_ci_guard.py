@@ -4,7 +4,9 @@ from tempfile import TemporaryDirectory
 from django.test import SimpleTestCase
 
 from scripts.ci_guard import (
+    CI_SQLITE_ARTIFACT_NAMES,
     find_absolute_paths,
+    find_ci_temp_database_artifacts,
     find_forbidden_tracked_files,
     find_missing_required_files,
     find_post_test_artifacts,
@@ -142,3 +144,46 @@ class PostTestArtifactGuardTests(SimpleTestCase):
             problems = find_post_test_artifacts(root)
 
         self.assertEqual(problems, [])
+
+
+class CiTempDatabaseArtifactGuardTests(SimpleTestCase):
+    def test_ci_database_and_sidecar_artifacts_are_reported(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            expected_names = {
+                "ci.sqlite3",
+                "ci.sqlite3-wal",
+                "test_ci.sqlite3",
+                "test_ci.sqlite3-journal",
+            }
+            for artifact_name in expected_names:
+                (root / artifact_name).touch()
+
+            problems = find_ci_temp_database_artifacts(root)
+
+        self.assertEqual(
+            {Path(problem.path).name for problem in problems},
+            expected_names,
+        )
+
+    def test_unrelated_sqlite_files_are_not_in_cleanup_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / "production.sqlite3").touch()
+
+            problems = find_ci_temp_database_artifacts(root)
+
+        self.assertEqual(problems, [])
+
+    def test_clean_temp_directory_passes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            problems = find_ci_temp_database_artifacts(Path(temp_dir))
+
+        self.assertEqual(problems, [])
+
+    def test_cleanup_scope_contains_only_fixed_filenames(self) -> None:
+        self.assertEqual(len(CI_SQLITE_ARTIFACT_NAMES), 8)
+        self.assertEqual(len(set(CI_SQLITE_ARTIFACT_NAMES)), 8)
+        self.assertTrue(
+            all(Path(name).name == name for name in CI_SQLITE_ARTIFACT_NAMES)
+        )
