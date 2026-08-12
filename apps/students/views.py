@@ -7,6 +7,29 @@ from apps.materials.models import (
     IdeologicalReportSummary,
 )
 
+def _compute_last_updated(student, application_record, report_summary, idea_reports):
+    """最近更新时间：取当前档案相关系统记录时间的最大值。
+
+    候选字段（仅取非空）：
+    - Student.updated_at
+    - ApplicationRecord.updated_at
+    - IdeologicalReportSummary.updated_at
+    - 有效 IdeologicalReport.created_at 的最大值
+
+    submitted_at 仅代表业务提交日期，不参与更新时间计算。
+    """
+    candidates = [student.updated_at]
+    if application_record is not None:
+        candidates.append(application_record.updated_at)
+    if report_summary is not None:
+        candidates.append(report_summary.updated_at)
+    if idea_reports:
+        latest_report_created = max(report.created_at for report in idea_reports)
+        candidates.append(latest_report_created)
+    # 过滤掉 None（updated_at 字段理论上都有值，防御性处理）
+    valid = [value for value in candidates if value is not None]
+    return max(valid) if valid else None
+
 @student_required
 def student_profile(request):
     """学生个人档案只读页面。
@@ -32,11 +55,10 @@ def student_profile(request):
     idea_reports = list(
         IdeologicalReport.objects.filter(student=student, is_active=True).order_by("sequence_number")
     )
-    # 最近更新时间取最新一次有效提交
-    latest_report = (
-        IdeologicalReport.objects.filter(student=student, is_active=True)
-        .order_by("-submitted_at")
-        .first()
+
+    # 最近更新时间：当前档案相关系统记录时间的最大值
+    last_updated = _compute_last_updated(
+        student, application_record, report_summary, idea_reports
     )
 
     # 总篇数：优先 Excel 填报值（含0）；为 None 时回退系统计算值并标记来源
@@ -57,7 +79,7 @@ def student_profile(request):
         "application_records": [application_record] if application_record else [],
         "idea_reports": idea_reports,
         "report_count": report_count,
-        "latest_report": latest_report,
+        "last_updated": last_updated,
         "is_count_from_system": is_count_from_system,
     }
     return render(request, "students/student_profile.html", context)

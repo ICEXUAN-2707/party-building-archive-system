@@ -11,7 +11,7 @@ from apps.materials.models import (
 from apps.students.models import DevelopmentStage, PartyBranch, Student
 
 class StudentProfileTestCase(TestCase):
-    """学生个人档案只读页面单元测试，覆盖返工单用例 1-10。"""
+    """学生个人档案只读页面单元测试，覆盖返工单用例 1-12。"""
 
     def setUp(self):
         self.branch = PartyBranch.objects.create(code="PROFILE", name="档案测试支部")
@@ -69,7 +69,7 @@ class StudentProfileTestCase(TestCase):
         res = self.client.get(self.profile_url)
         self.assertEqual(res.status_code, 200)
         self.assertIsNotNone(res.context["application_record"])
-        self.assertContains(res, "2025-03-01")
+        self.assertContains(res, "2025年3月1日")
         # 切换到无申请记录的学生
         self._login(self.student_b)
         res2 = self.client.get(self.profile_url)
@@ -128,8 +128,8 @@ class StudentProfileTestCase(TestCase):
         self.assertEqual(res.status_code, 200)
         seqs = [r.sequence_number for r in res.context["idea_reports"]]
         self.assertEqual(seqs, [1])
-        self.assertContains(res, "第1篇")
-        self.assertNotContains(res, "第2篇")
+        self.assertContains(res, "第1次思想汇报")
+        self.assertNotContains(res, "第2次思想汇报")
 
     # 用例8：明细按真实 sequence_number 排序和标号
     def test_reports_ordered_by_sequence_number(self):
@@ -144,8 +144,8 @@ class StudentProfileTestCase(TestCase):
         seqs = [r.sequence_number for r in res.context["idea_reports"]]
         self.assertEqual(seqs, [1, 2, 3])
         content = res.content.decode()
-        self.assertLess(content.index("第1篇"), content.index("第2篇"))
-        self.assertLess(content.index("第2篇"), content.index("第3篇"))
+        self.assertLess(content.index("第1次思想汇报"), content.index("第2次思想汇报"))
+        self.assertLess(content.index("第2次思想汇报"), content.index("第3次思想汇报"))
 
     # 用例9：无汇总、无明细时页面正常
     def test_empty_summary_and_reports_renders(self):
@@ -167,3 +167,35 @@ class StudentProfileTestCase(TestCase):
         self.assertEqual(res.status_code, 302)
         self.assertEqual(res["Location"], self.login_url)
         self.assertNotIn("student_id", self.client.session)
+    # 用例11：最近更新时间取系统记录时间最大值，不使用 submitted_at
+    def test_last_updated_uses_system_record_max(self):
+        from datetime import date, datetime
+        # 申请记录 updated_at 较新
+        ApplicationRecord.objects.create(
+            student=self.student_a, applied_at=date(2025, 3, 1),
+        )
+        # 思想汇报明细 created_at 较旧（业务提交日期较新也不应被采用）
+        IdeologicalReport.objects.create(
+            student=self.student_a, sequence_number=1,
+            submitted_at=date(2025, 12, 31),
+            source_column_name="第1次思想汇报", is_active=True,
+        )
+        self._login(self.student_a)
+        res = self.client.get(self.profile_url)
+        self.assertEqual(res.status_code, 200)
+        last_updated = res.context["last_updated"]
+        self.assertIsNotNone(last_updated)
+        # submitted_at 是 2025-12-31，但不应作为最近更新时间
+        # 最近更新时间应来自 Student/ApplicationRecord/IdeologicalReport 的系统记录时间
+        self.assertNotEqual(last_updated, date(2025, 12, 31))
+
+    # 用例12：中文日期格式渲染
+    def test_chinese_date_format_rendered(self):
+        ApplicationRecord.objects.create(
+            student=self.student_a, applied_at=date(2025, 3, 1),
+        )
+        self._login(self.student_a)
+        res = self.client.get(self.profile_url)
+        self.assertEqual(res.status_code, 200)
+        self.assertContains(res, "2025年3月1日")
+        self.assertNotContains(res, "2025-03-01")
