@@ -1,7 +1,8 @@
-from datetime import date
+from datetime import date, timedelta
 
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.materials.models import (
     ApplicationRecord,
@@ -69,7 +70,7 @@ class StudentProfileTestCase(TestCase):
         res = self.client.get(self.profile_url)
         self.assertEqual(res.status_code, 200)
         self.assertIsNotNone(res.context["application_record"])
-        self.assertContains(res, "2025-03-01")
+        self.assertContains(res, "2025年3月1日")
         # 切换到无申请记录的学生
         self._login(self.student_b)
         res2 = self.client.get(self.profile_url)
@@ -110,8 +111,8 @@ class StudentProfileTestCase(TestCase):
         res = self.client.get(self.profile_url)
         self.assertEqual(res.context["report_count"], 5)
         self.assertTrue(res.context["is_count_from_system"])
-        self.assertContains(res, "总计5篇")
-        self.assertContains(res, "系统自动统计")
+        self.assertContains(res, "思想汇报总篇数：5篇")
+        self.assertContains(res, "根据当前已记录提交时间统计")
 
     # 用例7：只显示 is_active=True 的明细
     def test_only_active_reports_displayed(self):
@@ -128,8 +129,9 @@ class StudentProfileTestCase(TestCase):
         self.assertEqual(res.status_code, 200)
         seqs = [r.sequence_number for r in res.context["idea_reports"]]
         self.assertEqual(seqs, [1])
-        self.assertContains(res, "第1篇")
-        self.assertNotContains(res, "第2篇")
+        self.assertContains(res, "第1次思想汇报")
+        self.assertNotContains(res, "第2次思想汇报")
+        self.assertContains(res, "2025年1月1日")
 
     # 用例8：明细按真实 sequence_number 排序和标号
     def test_reports_ordered_by_sequence_number(self):
@@ -144,8 +146,55 @@ class StudentProfileTestCase(TestCase):
         seqs = [r.sequence_number for r in res.context["idea_reports"]]
         self.assertEqual(seqs, [1, 2, 3])
         content = res.content.decode()
-        self.assertLess(content.index("第1篇"), content.index("第2篇"))
-        self.assertLess(content.index("第2篇"), content.index("第3篇"))
+        self.assertLess(content.index("第1次思想汇报"), content.index("第2次思想汇报"))
+        self.assertLess(content.index("第2次思想汇报"), content.index("第3次思想汇报"))
+
+    def test_profile_updated_at_uses_latest_system_record_time(self):
+        """更新时间取系统记录时间，不得取业务提交日期。"""
+        now = timezone.now().replace(second=0, microsecond=0)
+        student_time = now - timedelta(days=3)
+        application_time = now - timedelta(days=2)
+        summary_time = now - timedelta(days=1)
+        report_time = now
+
+        application = ApplicationRecord.objects.create(
+            student=self.student_a,
+            applied_at=date(2019, 1, 1),
+        )
+        summary = IdeologicalReportSummary.objects.create(
+            student=self.student_a,
+            reported_total_count=1,
+            calculated_date_count=1,
+        )
+        report = IdeologicalReport.objects.create(
+            student=self.student_a,
+            sequence_number=1,
+            submitted_at=date(2020, 1, 1),
+            source_column_name="第1次思想汇报",
+            is_active=True,
+        )
+        Student.objects.filter(pk=self.student_a.pk).update(updated_at=student_time)
+        ApplicationRecord.objects.filter(pk=application.pk).update(updated_at=application_time)
+        IdeologicalReportSummary.objects.filter(pk=summary.pk).update(updated_at=summary_time)
+        IdeologicalReport.objects.filter(pk=report.pk).update(created_at=report_time)
+
+        self._login(self.student_a)
+        res = self.client.get(self.profile_url)
+
+        self.assertEqual(res.context["profile_updated_at"], report_time)
+        local_report_time = timezone.localtime(report_time)
+        expected_time = (
+            f"{local_report_time.year}年{local_report_time.month}月{local_report_time.day}日 "
+            f"{local_report_time:%H:%M}"
+        )
+        self.assertContains(res, expected_time)
+        self.assertNotContains(res, "2020年1月1日 00:00")
+
+    def test_profile_updated_at_falls_back_to_student_updated_at(self):
+        self._login(self.student_a)
+        res = self.client.get(self.profile_url)
+        self.assertEqual(res.context["profile_updated_at"], self.student_a.updated_at)
+        self.assertContains(res, "最近更新时间")
 
     # 用例9：无汇总、无明细时页面正常
     def test_empty_summary_and_reports_renders(self):

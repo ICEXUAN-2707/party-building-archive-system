@@ -29,7 +29,7 @@
         <div class="card-header">入党申请</div>
         <div class="card-body">
             {% if application_record %}
-                <p>申请入党时间：{{ application_record.applied_at|date:"Y-m-d"|default:"未填写" }}</p>
+                <p>申请入党时间：{{ application_record.applied_at|date:"Y年n月j日"|default:"未填写" }}</p>
             {% else %}
                 <p class="text-secondary">暂无入党申请记录</p>
             {% endif %}
@@ -39,12 +39,10 @@
     <!-- 思想汇报 -->
     <div class="card">
         <div class="card-header">
-            思想汇报 总计{{ report_count }}篇
-            {% if latest_report %}
-                <span class="text-muted ms-3">最近更新：{{ latest_report.submitted_at|date:"Y-m-d" }}</span>
-            {% endif %}
+            思想汇报总篇数：{{ report_count }}篇
+            <span class="text-muted ms-3">最近更新时间：{{ profile_updated_at|date:"Y年n月j日 H:i" }}</span>
             {% if is_count_from_system %}
-                <span class="text-info ms-2">（系统自动统计）</span>
+                <span class="text-info ms-2">（根据当前已记录提交时间统计）</span>
             {% endif %}
         </div>
         <div class="card-body">
@@ -52,7 +50,7 @@
             <ul class="list-group">
                 {% for report in idea_reports %}
                 <li class="list-group-item">
-                    第{{ report.sequence_number }}篇 — {{ report.submitted_at|date:"Y-m-d" }}
+                    第{{ report.sequence_number }}次思想汇报　{{ report.submitted_at|date:"Y年n月j日" }}
                 </li>
                 {% endfor %}
             </ul>

@@ -70,9 +70,11 @@ from apps.accounts.student_access import student_required
 # 6. 关键规则
 
 1. 明细限定 `student=当前学生`、`is_active=True`，按 `sequence_number` 升序，模板显示真实 `sequence_number`。
-2. 总篇数：`reported_total_count is not None`（含0）展示原始值；为 `None` 展示 `calculated_date_count` 并标记"系统自动统计"；无汇总时回退有效明细数量。
+2. 总篇数：`reported_total_count is not None`（含0）展示原始值；为 `None` 展示 `calculated_date_count` 并标记“根据当前已记录提交时间统计”；无汇总时回退有效明细数量。
 3. 关联缺失（申请/汇总/明细为空）一律展示"暂无数据"，不抛500。
 4. URL、GET、POST 中的目标学生ID一律忽略，身份只来自 Session。
+5. `profile_updated_at` 表示当前档案记录在系统内的最近变更时间，取 `Student.updated_at`、申请记录和汇总记录的 `updated_at`、有效思想汇报的最大 `created_at`；思想汇报业务日期 `submitted_at` 不作为更新时间。
+6. Excel 日期进入解析器后统一为 `datetime.date` 并由 `DateField` 保存；学生页仅按 Spec 将日期展示为 `Y年n月j日`，不改变解析或存储格式。
 
 ---
 
