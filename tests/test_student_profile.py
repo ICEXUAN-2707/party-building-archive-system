@@ -4,10 +4,9 @@ from apps.students.models import Student, PartyBranch
 
 class StudentProfileTestCase(TestCase):
     def setUp(self):
-        # 先创建党支部
+        # 先创建党支部，解决branch_id非空约束报错
         self.branch = PartyBranch.objects.create(name="第一学生党支部")
-
-        # 创建测试学生
+        # 创建测试学生，绑定党支部外键
         self.test_student = Student.objects.create(
             name="张三",
             student_number="2026001",
@@ -20,7 +19,6 @@ class StudentProfileTestCase(TestCase):
             development_stage="FULL_MEMBER",
             branch=self.branch
         )
-
         self.profile_url = reverse("student-profile")
 
     def test_page_normal_render(self):
