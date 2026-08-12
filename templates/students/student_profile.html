@@ -4,7 +4,13 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2>个人党务档案</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="mb-0">个人党务档案</h2>
+        <form method="post" action="{% url 'accounts:student_logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-secondary btn-sm">退出登录</button>
+        </form>
+    </div>
     <hr>
 
     <!-- 基础信息 -->
@@ -22,11 +28,8 @@
     <div class="card mb-3">
         <div class="card-header">入党申请</div>
         <div class="card-body">
-            {% if application_records %}
-                {% for item in application_records %}
-                <p>提交时间：{{ item.applied_at }}</p>
-                <p>填报汇报总数：{{ item.reported_total_count|default:"未填写" }}</p>
-                {% endfor %}
+            {% if application_record %}
+                <p>申请入党时间：{{ application_record.applied_at|date:"Y-m-d"|default:"未填写" }}</p>
             {% else %}
                 <p class="text-secondary">暂无入党申请记录</p>
             {% endif %}
@@ -38,7 +41,7 @@
         <div class="card-header">
             思想汇报 总计{{ report_count }}篇
             {% if latest_report %}
-                <span class="text-muted ms-3">最新提交：{{ latest_report.submitted_at }}</span>
+                <span class="text-muted ms-3">最近更新：{{ latest_report.submitted_at|date:"Y-m-d" }}</span>
             {% endif %}
             {% if is_count_from_system %}
                 <span class="text-info ms-2">（系统自动统计）</span>
@@ -49,7 +52,7 @@
             <ul class="list-group">
                 {% for report in idea_reports %}
                 <li class="list-group-item">
-                    第{{ report.sequence_number }}篇 — {{ report.submitted_at }}
+                    第{{ report.sequence_number }}篇 — {{ report.submitted_at|date:"Y-m-d" }}
                 </li>
                 {% endfor %}
             </ul>

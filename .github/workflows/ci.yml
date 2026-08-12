@@ -98,6 +98,9 @@ jobs:
 
           print("CI environment verification passed.")
 
+      - name: Remove stale CI databases
+        run: python -m scripts.ci_database_cleanup
+
       - name: Show tool versions
         run: |
           python --version
@@ -121,3 +124,11 @@ jobs:
       - name: Check for test pollution
         if: ${{ !cancelled() }}
         run: python scripts/ci_guard.py --post-test
+
+      - name: Always remove CI databases
+        if: ${{ always() && !cancelled() }}
+        run: python -m scripts.ci_database_cleanup
+
+      - name: Verify CI database cleanup
+        if: ${{ always() && !cancelled() }}
+        run: python scripts/ci_guard.py --post-test --temp-dir "${{ runner.temp }}"
