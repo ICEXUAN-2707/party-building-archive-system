@@ -1,10 +1,143 @@
 {% extends "base.html" %}
 
-{% block title %}管理员学生列表{% endblock %}
+{% block title %}学生管理{% endblock %}
 
 {% block content %}
-<div class="page-panel">
-  <h1 class="h3 mb-3">管理员学生列表占位页</h1>
-  <p class="text-secondary">完整查询、筛选和权限校验将在业务阶段实现。</p>
+<h1 class="h3 mb-3">学生管理</h1>
+
+{# ── 筛选区域 ── #}
+<form method="get" class="surface p-3 mb-4">
+  <div class="row g-2 align-items-end">
+    <div class="col-md-2">
+      <label class="form-label small mb-1">姓名</label>
+      <input
+        type="text" name="name" class="form-control form-control-sm"
+        value="{{ filters.name|default:'' }}" placeholder="输入姓名搜索"
+      >
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">学号</label>
+      <input
+        type="text" name="student_number" class="form-control form-control-sm"
+        value="{{ filters.student_number|default:'' }}" placeholder="输入学号搜索"
+      >
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">支部</label>
+      <select name="branch" class="form-select form-select-sm">
+        <option value="">全部</option>
+        {% for b in branches %}
+        <option value="{{ b.id }}" {% if filters.branch == b.id|stringformat:'s' %}selected{% endif %}>
+          {{ b.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">阶段</label>
+      <select name="stage" class="form-select form-select-sm">
+        <option value="">全部</option>
+        {% for code, label in stages %}
+        <option value="{{ code }}" {% if filters.stage == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label small mb-1">状态</label>
+      <select name="status" class="form-select form-select-sm">
+        <option value="">全部</option>
+        {% for code, label in statuses %}
+        <option value="{{ code }}" {% if filters.status == code %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-2 d-flex gap-2">
+      <button type="submit" class="btn btn-primary btn-sm">查询</button>
+      <a href="{% url 'students:admin_student_list' %}" class="btn btn-outline-secondary btn-sm">重置</a>
+    </div>
+  </div>
+</form>
+
+{# ── 结果统计 ── #}
+<p class="text-secondary small mb-2">
+  共 {{ page_obj.paginator.count }} 名学生
+  {% if filters.name or filters.student_number or filters.branch or filters.stage or filters.status %}
+    （已筛选）
+  {% endif %}
+</p>
+
+{# ── 学生表格 ── #}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>姓名</th>
+        <th>学号</th>
+        <th>支部</th>
+        <th>阶段</th>
+        <th>职务</th>
+        <th>状态</th>
+        <th>更新时间</th>
+        <th>操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for student in students %}
+      <tr>
+        <td><span class="fw-semibold">{{ student.name }}</span></td>
+        <td><code class="text-secondary">{{ student.student_number }}</code></td>
+        <td>{{ student.branch.name }}</td>
+        <td>
+          {% if student.development_stage == 'ACTIVIST' %}
+            <span class="badge bg-info">入党积极分子</span>
+          {% elif student.development_stage == 'PROBATIONARY' %}
+            <span class="badge bg-warning text-dark">中共预备党员</span>
+          {% elif student.development_stage == 'FULL_MEMBER' %}
+            <span class="badge bg-success">正式党员</span>
+          {% endif %}
+        </td>
+        <td>{{ student.position|default:"—" }}</td>
+        <td>
+          {% if student.status == 'active' %}
+            <span class="badge bg-success">有效</span>
+          {% elif student.status == 'inactive' %}
+            <span class="badge bg-secondary">无效</span>
+          {% else %}
+            {{ student.get_status_display }}
+          {% endif %}
+        </td>
+        <td><span class="small text-secondary">{{ student.updated_at|date:"Y-m-d H:i" }}</span></td>
+        <td>
+          <a href="{% url 'students:admin_student_detail' student.pk %}" class="btn btn-sm btn-outline-primary">详情</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8" class="text-center text-secondary py-4">暂无学生数据。</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+
+{# ── 分页 ── #}
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="d-flex justify-content-between align-items-center mt-3">
+  <span class="small text-secondary">
+    第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页
+  </span>
+  <ul class="pagination pagination-sm mb-0">
+    {% if page_obj.has_previous %}
+    <li class="page-item">
+      <a class="page-link" href="?{% for k,v in filters.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">上一页</a>
+    </li>
+    {% endif %}
+    {% if page_obj.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="?{% for k,v in filters.items %}{% if k != 'page' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">下一页</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
 {% endblock %}

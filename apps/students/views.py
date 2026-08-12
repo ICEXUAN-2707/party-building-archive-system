@@ -1,13 +1,121 @@
-from django.db.models import Max
+from django.db.models import Max, Prefetch, Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
+from django.views.generic import DetailView, ListView
 
+from apps.accounts.permissions import ViewerOrDataAdminRequiredMixin
 from apps.accounts.student_access import student_required
 from apps.materials.models import (
     ApplicationRecord,
     IdeologicalReport,
     IdeologicalReportSummary,
 )
+from .models import DevelopmentStage, PartyBranch, Student, StudentStatus
+
+
+# ═══════════════════════════════════════════════════════════
+# 管理员学生列表 / 详情（成员5）
+# ═══════════════════════════════════════════════════════════
+
+class AdminStudentListView(ViewerOrDataAdminRequiredMixin, ListView):
+    """管理员学生列表：展示8个字段，支持5类筛选、分页。"""
+
+    model = Student
+    template_name = "students/admin_student_list.html"
+    context_object_name = "students"
+    paginate_by = 50
+
+    # 预取关联支部，避免 N+1 查询
+    queryset = Student.objects.select_related("branch").order_by("student_number")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = self.request.GET
+
+        # 姓名：模糊匹配
+        name = params.get("name", "").strip()
+        if name:
+            qs = qs.filter(name__icontains=name)
+
+        # 学号：模糊匹配
+        student_number = params.get("student_number", "").strip()
+        if student_number:
+            qs = qs.filter(student_number__icontains=student_number)
+
+        # 支部：精确匹配，校验整数
+        branch_id = params.get("branch", "").strip()
+        if branch_id:
+            if branch_id.isdigit():
+                qs = qs.filter(branch_id=int(branch_id))
+            # 非法值静默忽略，不报500
+
+        # 发展阶段：精确匹配，校验合法值
+        stage = params.get("stage", "").strip()
+        if stage:
+            valid_stages = {s.value for s in DevelopmentStage}
+            if stage in valid_stages:
+                qs = qs.filter(development_stage=stage)
+            # 非法值静默忽略
+
+        # 学生状态：精确匹配，校验合法值
+        status = params.get("status", "").strip()
+        if status:
+            valid_statuses = {s.value for s in StudentStatus}
+            if status in valid_statuses:
+                qs = qs.filter(status=status)
+            # 非法值静默忽略
+
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["branches"] = PartyBranch.objects.filter(is_active=True)
+        context["stages"] = DevelopmentStage.choices
+        context["statuses"] = StudentStatus.choices
+        context["filters"] = self.request.GET.dict()
+        return context
+
+
+class AdminStudentDetailView(ViewerOrDataAdminRequiredMixin, DetailView):
+    """管理员学生详情：展示完整党务材料信息与统计汇总。"""
+
+    model = Student
+    template_name = "students/admin_student_detail.html"
+    context_object_name = "student"
+
+    def get_queryset(self):
+        return (
+            Student.objects
+            .select_related("branch", "source_import_batch")
+            .prefetch_related(
+                "application_record",
+                "report_summary",
+                Prefetch(
+                    "ideological_reports",
+                    queryset=IdeologicalReport.objects.filter(is_active=True).order_by("sequence_number"),
+                ),
+            )
+        )
+
+    def get(self, request, *args, **kwargs):
+        response = super().get(request, *args, **kwargs)
+        # 写入查看详情审计日志
+        from apps.audit.services import record_operation_log
+
+        student = self.object
+        record_operation_log(
+            request,
+            action="view_student_detail",
+            target_type="student",
+            target_id=str(student.pk),
+            description=f"查看学生 {student.name}（{student.student_number}）详情",
+        )
+        return response
+
+
+# ═══════════════════════════════════════════════════════════
+# 学生个人页（成员4）
+# ═══════════════════════════════════════════════════════════
 
 @student_required
 def student_profile(request: HttpRequest) -> HttpResponse:
