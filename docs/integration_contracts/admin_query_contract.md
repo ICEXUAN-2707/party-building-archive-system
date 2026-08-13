@@ -45,7 +45,7 @@ success redirect: accounts:admin_login
 规则：
 
 1. 退出必须使用带CSRF保护的POST。
-2. 只清除Django管理员认证，必须保留`request.session["student_id"]`。
+2. 同时清除Django管理员认证和`request.session["student_id"]`。
 3. GET不得执行退出；Django可返回405。
 4. 对已认证管理员记录`admin_logout`。
 5. 学生退出的对称行为继续由`student_session_contract.md`控制，不得在成员5代码中重写。
@@ -143,13 +143,13 @@ view_student_detail
 
 ## 8. 副作用
 
-列表与详情只读，除成功详情审计外不得写入`Student`或材料业务表。登录和退出只改变Django认证Session，并遵守学生Session隔离规则。
+列表与详情只读，除成功详情审计外不得写入`Student`或材料业务表。管理员退出按已确认决策同时清除管理员认证和`student_id`；学生退出仍只清除学生身份。
 
 ## 9. 契约测试
 
 1. 登录成功、失败和停用管理员场景。
 2. 已登录合法管理员访问登录页重定向列表。
-3. POST退出清除管理员认证并保留`student_id`。
+3. POST退出同时清除管理员认证和`student_id`。
 4. 学生退出删除`student_id`并保留管理员认证。
 5. GET退出不执行退出。
 6. 匿名列表和详情重定向登录。

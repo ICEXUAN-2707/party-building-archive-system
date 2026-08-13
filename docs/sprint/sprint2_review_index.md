@@ -1,5 +1,7 @@
 # Sprint 2 评审索引
 
+> 历史Review索引：其中待办与实现解锁条件反映2026-08-09状态。当前状态和现行回滚方案分别见`docs/current_project_status.md`与`docs/sprint/mvp_convergence_governance_plan.md`。
+
 ## 1. 使用原则
 
 本索引是Sprint 2评审入口，不迁移或改写历史评审结论。发生冲突时，以最新`develop`代码、冻结契约和`docs/member_tasks/sprint2/`任务卡为准；旧分支与旧任务文档仅用于追溯问题，不能作为实现接口来源。

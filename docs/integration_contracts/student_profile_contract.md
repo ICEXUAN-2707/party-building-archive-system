@@ -4,12 +4,15 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | FROZEN |
+| 契约状态 | 冻结 |
+| 实现状态 | 已合入 `develop` |
+| 实现基线 | `develop@42abdf7` |
+| 最后核验 | 2026-08-12 |
 | 版本 | Sprint 2 / 1.0 |
 | 冻结日期 | 2026-08-09 |
 | 提供方 | 成员4，`students`模块 |
 | 消费方 | 学生个人页模板、成员2集成测试 |
-| 依据基线 | `develop@068c27fb7e41ec6f77299ebf3bbac68162714f63` |
+| 依据基线 | `develop@42abdf7915e1cfe2cb55d889b07648012b360f7d` |
 | 依赖 | `student_session_contract.md`、`docs/spec.md` V1.2、当前`Student`与`materials`模型 |
 
 本契约冻结页面可观察行为，不冻结视图内部查询、私有辅助函数或`select_related()`、`prefetch_related()`的具体写法。

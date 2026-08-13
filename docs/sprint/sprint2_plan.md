@@ -1,5 +1,7 @@
 # Sprint 2 开发计划
 
+> 历史计划：本文保留当时审计与规划，不再作为当前任务或回滚实现依据。当前状态见`docs/current_project_status.md`，2026-08-12审核方案见`docs/sprint/mvp_convergence_governance_plan.md`。
+
 ## 1. 基线与审计范围
 
 | 项目 | 内容 |

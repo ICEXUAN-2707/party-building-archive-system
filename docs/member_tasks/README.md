@@ -1,67 +1,51 @@
 # 成员任务总索引
 
-## 1. 文档基线
+## 当前基线
 
-本索引依据以下基线更新：
+| 项目 | 内容 |
+| --- | --- |
+| 更新日期 | 2026-08-12 |
+| 集成分支 | `develop` |
+| 基线提交 | `42abdf7915e1cfe2cb55d889b07648012b360f7d` |
+| 当前状态入口 | `docs/current_project_status.md` |
+| 第一版作业方案 | `docs/sprint/mvp_convergence_governance_plan.md` |
 
-```text
-更新日期：2026-07-28
-集成分支：develop
-基线提交：3a0e41b
-CI修复：PR #7，测试SHA 30941da6
-CI成功运行：30328443814
-```
+业务规则以`docs/spec.md`为准，协作规则以`docs/02_git_workflow.md`为准。本目录中`repair/`和`review_followup_20260727/`记录历史Review与返工过程，不代表当前develop状态。
 
-业务规则以`docs/spec.md`为准，Git协作以`docs/02_git_workflow.md`为准。详细任务卡位于`review_followup_20260727/`，CSV汇总位于`member_task_summary.csv`。
+## 当前任务状态
 
-## 2. 当前总体结论
+| 成员 | 模块 | 当前状态 | 当前职责 | 直接依赖 |
+| --- | --- | --- | --- | --- |
+| 成员1 | 技术与文档治理 | 进行中 | 契约、Review、作业边界和集成门禁 | 全员交付 |
+| 成员2 | 配置、CI、集成测试 | 基础完成/持续维护 | 双平台CI、跨模块回归、发布候选验证 | 各功能候选SHA |
+| 成员3 | 学生认证 | 已完成/维护 | 维护Session冻结接口和消费者支持 | 无 |
+| 成员4 | 学生个人档案 | 已完成/维护 | 学生页面回归及导入后数据验证 | 学生认证 |
+| 成员5 | 管理员查询与权限 | 开发中 | 管理员认证、统一权限、查询和审计服务 | 当前契约 |
+| 成员6 | Excel解析 | 已完成/维护 | 维护`parse_workbook`及消费者支持 | 无 |
+| 成员7 | Excel导入与回滚 | 开发中 | 按三个PR完成上传预览、正式导入、回滚备份 | 管理员权限、解析器 |
 
-1. Sprint 0骨架已经形成`develop`基线。
-2. CI已可用，所有新PR必须通过Repository policy、Ubuntu和Windows三项检查。
-3. PR #3指向`develop`，但仍为Request Changes且功能分支落后当前基线。
-4. PR #4错误指向`main`，必须由成员6基于最新`develop`返工。
-5. PR #6错误指向`main`、分支源头错误且存在冲突，必须由成员3基于最新`develop`返工。
-6. 成员4依赖成员3认证接口，成员7依赖成员5权限接口和成员6解析接口。
-7. 当前不能把PR #3、#4或#6直接作为Sprint 1集成候选。
-
-## 3. 成员任务总览
-
-| 成员 | 角色 | 当前任务 | 状态 | 分支/PR | 直接依赖 | 详细任务卡 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 成员1 | 项目负责人 | 接口冻结、Review与集成门禁 | 进行中 | `docs/sprint1-integration-contracts` | 全员交付 | [01_lead_spec.md](review_followup_20260727/01_lead_spec.md) |
-| 成员2 | 技术架构 | 配置基线、CI维护 | 基础完成/持续维护 | `develop@3a0e41b`、PR #7 | 成员1审批分支保护 | [02_architecture_spec.md](review_followup_20260727/02_architecture_spec.md) |
-| 成员3 | 学生认证 | 登录、Session和访问保护 | 打回重做 | 关闭/转Draft PR #6；新建返工PR | 成员1接口冻结 | [03_student_auth_spec.md](review_followup_20260727/03_student_auth_spec.md) |
-| 成员4 | 学生展示 | 本人档案页与联调 | 阻塞 | `feature/student-profile`尚无远端PR | 成员3合格认证接口 | [04_student_profile_spec.md](review_followup_20260727/04_student_profile_spec.md) |
-| 成员5 | 管理员查询 | 权限、筛选、详情和审计修复 | Request Changes | PR #3 | 最新`develop`、成员1接口冻结 | [05_admin_query_fix_spec.md](review_followup_20260727/05_admin_query_fix_spec.md) |
-| 成员6 | Excel解析 | 生产解析入口和契约修复 | 打回重做 | 关闭/转Draft PR #4；新建返工PR | 冻结Excel规则 | [06_excel_parser_fix_spec.md](review_followup_20260727/06_excel_parser_fix_spec.md) |
-| 成员7 | Excel导入 | 消费契约与测试设计 | 阻塞 | 正式开发后使用`feature/excel-import` | 成员5、成员6 | [07_excel_import_preparation_spec.md](review_followup_20260727/07_excel_import_preparation_spec.md) |
-
-## 4. 推荐执行顺序
+## 执行顺序
 
 ```text
-成员1冻结跨模块接口
-├── 成员3基于最新develop重做认证
-│   └── 成员4实现个人页并完成学生端联调
-├── 成员5同步develop并修复PR #3
-│   └── 成员7确认导入权限消费方式
-└── 成员6基于最新develop重做解析器
-    └── 成员7确认ParseResult消费方式
-
-成员2持续维护CI，覆盖所有成员PR
-成员1在依赖完成后组织最终集成
+文档治理
+→ 管理员认证、权限、查询与审计
+→ Excel上传、服务端预览、历史与下载
+→ Excel正式事务导入
+→ 最近成功批次回滚与SQLite备份
+→ 全链路集成及文档封板
 ```
 
-## 5. 统一Git要求
+## 作业边界
 
-1. 开发前执行`git fetch origin`并从最新`origin/develop`创建功能或返工分支。
-2. 功能PR目标必须为`develop`，不得直接向`main`提交业务功能。
-3. 不得使用强推、历史重写或删除迁移文件处理返工。
-4. 旧分支基线错误时应建立干净返工分支，只迁移人工复核后的任务范围内改动。
-5. PR必须记录基线SHA、最终测试SHA、执行命令和CI链接。
+- 文档治理不得修改业务代码、模板、测试、模型、迁移或Spec。
+- 管理员模块不得进入Excel业务，不得修改学生认证契约。
+- Excel导入模块只消费统一管理员权限、审计服务和`parse_workbook`，不得复制权限或解析逻辑。
+- 第一版不新增数据库快照模型或迁移，不修改思想汇报唯一约束。
+- 历史任务卡不得作为当前接口状态依据；当前状态以状态页和契约状态头为准。
 
-## 6. 统一CI门禁
+## CI门禁
 
-最终待合并SHA必须同时通过：
+每个最终候选SHA必须通过：
 
 ```text
 Repository policy
@@ -69,27 +53,4 @@ Django tests (ubuntu-latest)
 Django tests (windows-latest)
 ```
 
-规则：
-
-1. PR新增提交、解决冲突或同步`develop`后，必须以新SHA重新完成全部检查。
-2. 旧SHA、其他分支、截图或本地测试不能替代当前PR的CI。
-3. 任一检查失败、取消、跳过或仍在运行时不得合并。
-4. CI成功不替代人工Review、接口审查和任务范围审查。
-
-## 7. 集成门禁
-
-形成Sprint 1集成候选前必须满足：
-
-1. 成员3的新返工PR完成并与成员4联调。
-2. 成员5的PR #3完成Request Changes。
-3. 学生身份只能来自Session键`student_id`。
-4. `viewer_admin`和`data_admin`权限由后端验证。
-5. 所有候选PR绑定最终SHA并通过三项CI检查。
-6. 成员1输出明确的Demo可用性结论。
-
-## 8. 待负责人决策
-
-1. 是否将三项CI检查设置为`develop`分支保护必需项。
-2. 是否要求PR #4、PR #6立即关闭，或先转为Draft保留审查记录。
-3. `docs/member_tasks/00_integration_contracts.md`由成员1何时补齐。
-4. 成员5是继续修复PR #3，还是基于最新`develop`建立干净返工分支。
+并执行`check`、迁移检查、`migrate`、全量测试及`git diff --check`。旧SHA、其他分支或截图不能替代当前候选证据。

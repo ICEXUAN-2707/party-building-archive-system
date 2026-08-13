@@ -4,19 +4,21 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | FROZEN |
+| 契约状态 | 冻结；以2026-08-12决策为准 |
+| 实现状态 | 开发中，尚未合入 `develop@42abdf7` |
+| 最后核验 | 2026-08-12 |
 | 版本 | Sprint 2 / 1.0 |
 | 冻结日期 | 2026-08-09 |
 | 提供方 | 成员7，`imports`模块 |
 | 消费方 | 导入模板、成员2集成测试、管理员查询页面 |
-| 依据基线 | `develop@068c27fb7e41ec6f77299ebf3bbac68162714f63` |
+| 依据基线 | `develop@42abdf7915e1cfe2cb55d889b07648012b360f7d` |
 | 依赖 | `excel_parser_contract.md`、`admin_permission_contract.md`、`docs/spec.md` V1.2 |
 
 本契约冻结上传、预览、确认、批次和业务写入语义；不冻结视图类型、表单类或私有服务拆分方式。
 
 ## 2. 权限与公共入口
 
-所有入口独立执行后端权限检查：未登录跳转`accounts:admin_login`，`viewer_admin`返回403，只有`data_admin`允许。
+所有入口独立执行后端权限检查：未登录跳转`accounts:admin_login`。上传、预览、确认和原文件下载仅允许`data_admin`，`viewer_admin`返回403；历史列表和批次详情允许`viewer_admin`与`data_admin`读取。
 
 | 功能 | 方法 | 路径 | URL名称 |
 | --- | --- | --- | --- |
@@ -27,7 +29,7 @@
 | 批次详情 | GET | `/imports/history/<int:batch_id>/` | `imports:batch_detail` |
 | 原文件下载 | GET | `/imports/<int:batch_id>/file/` | `imports:download_file` |
 
-历史、详情和原文件同样只允许`data_admin`；第一版不向`viewer_admin`开放原始学生文件。
+历史和详情允许`viewer_admin`与`data_admin`；原文件下载仅允许`data_admin`。第一版不向`viewer_admin`开放原始学生文件。
 
 ## 3. 上传文件
 
@@ -52,12 +54,12 @@ apps.imports.parser.parse_workbook(file_path: Path) -> ParseResult
 1. 上传成功后创建`ImportBatch`，初始状态为`previewed`。
 2. 将`ParseResult`统计字段映射到批次同名字段：`total_sheets`、`success_sheets`、`failed_sheets`、`total_rows`、`success_rows`、`skipped_rows`、`warning_rows`。
 3. `errors`保存为`ImportErrorRecord`，`warnings`保存为`ImportWarningRecord`；只映射现有模型具备的字段，不编造缺失字段。
-4. `valid_rows`用于当前预览展示和确认时的候选语义，但不建立第二套解析结果数据结构。
-5. 每次GET预览和POST确认都必须先校验文件哈希，再从不可变文件重新调用解析器；不能信任客户端提交的预览行。
+4. `valid_rows`由服务端序列化为带`schema_version`的预览快照，用于跨请求展示和确认；不得由客户端重建。
+5. GET预览和POST确认必须校验原始文件哈希、预览快照哈希、批次ID和schema；确认直接消费校验通过的服务端快照，不信任客户端提交的预览行。
 6. 系统级文件或openpyxl异常不伪装成普通行错误；本次上传失败并向管理员显示安全错误信息。
 7. 预览阶段允许写入上传文件、`ImportBatch`、错误和警告记录，但`Student`、`ApplicationRecord`、`IdeologicalReportSummary`、`IdeologicalReport`必须零写入。
 8. 行级或工作表级错误必须展示并排除其对应数据，但不阻断其他`valid_rows`确认；系统级文件/工作簿异常阻断整个流程。
-9. 没有`valid_rows`时不允许确认。确认事务中的“整批”仅指本次`valid_rows`候选集合，禁止该集合内部部分成功；解析器已排除的错误行不属于候选集合。
+9. 没有`valid_rows`时仍允许形成可查看预览，但不允许确认，确认请求返回409。确认事务中的“整批”仅指本次`valid_rows`候选集合，禁止该集合内部部分成功；解析器已排除的错误行不属于候选集合。
 10. 同一工作簿中出现重复`student_number`时确认被阻断，并反馈批次数据冲突，不选择任意一行覆盖。
 
 ## 5. ParseResult写入映射

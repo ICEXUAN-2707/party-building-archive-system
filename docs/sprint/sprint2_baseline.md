@@ -1,5 +1,7 @@
 # Sprint 2 启动基线
 
+> 历史基线：本文记录2026-08-09的启动状态，不代表当前develop或现行决策。当前状态见`docs/current_project_status.md`，现行方案见`docs/sprint/mvp_convergence_governance_plan.md`。
+
 ## 1. 基线记录
 
 | 项目 | 内容 |
