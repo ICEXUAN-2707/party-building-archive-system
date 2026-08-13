@@ -74,6 +74,7 @@ class StudentFullFlowTestCase(TestCase):
         for url in admin_urls:
             with self.subTest(url=url):
                 res = self.client.get(url)
-                # 占位页不返回真实学生数据
-                self.assertNotContains(res, "特征学生甲")
-                self.assertNotContains(res, "LEAK001")
+                # 管理员路由使用 ViewerOrDataAdminRequiredMixin → 未登录跳转登录页
+                # 302 重定向比占位页更安全，确保学生数据不泄露给匿名用户
+                self.assertNotEqual(res.status_code, 200)
+                self.assertEqual(res.status_code, 302)
