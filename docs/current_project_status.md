@@ -6,9 +6,9 @@
 | --- | --- |
 | 核验日期 | 2026-08-12 |
 | 集成分支 | `develop` |
-| 核验 SHA | `42abdf7915e1cfe2cb55d889b07648012b360f7d` |
-| 最新合并 | PR #17，学生档案日期与更新时间语义修复 |
-| 本地验证 | `check`通过；无迁移变化；171项测试通过 |
+| 核验 SHA | `d2868b43e9126041226b58fbc2aef1d9e259a07f` |
+| 最新合并 | PR #3，管理员登录、权限、查询与审计闭环 |
+| 本地验证 | `check`通过；无迁移变化；230项测试通过 |
 | 业务规范 | `docs/spec.md` |
 | 当前作业方案 | `docs/sprint/mvp_convergence_governance_plan.md` |
 
@@ -22,9 +22,9 @@
 | 学生认证与Session | 已合入且稳定 | `apps.accounts.student_access` |
 | 学生个人档案 | 已合入且稳定 | `students:student_profile` |
 | Excel纯解析 | 已合入且稳定 | `apps.imports.parser.parse_workbook` |
-| 管理员认证、查询、权限、审计 | 开发中 | 契约冻结，代码待合入 |
-| Excel上传、服务端预览、历史、下载 | 开发中 | 计划拆分PR 1 |
-| Excel正式导入 | 开发中 | 计划拆分PR 2 |
+| 管理员认证、查询、权限、审计 | 已合入且稳定 | PR #3；管理员专项59项通过 |
+| Excel上传、服务端预览、历史、下载 | 待开发 | 计划拆分PR 1 |
+| Excel正式导入 | 待开发 | 计划拆分PR 2 |
 | 最近成功批次回滚与备份 | 方案冻结、待开发 | 计划拆分PR 3 |
 | Docker与生产部署 | 未开始 | 业务闭环后推进 |
 
@@ -35,9 +35,9 @@
 | `student_session_contract.md` | 冻结 | 已实现 |
 | `student_profile_contract.md` | 冻结 | 已实现 |
 | `excel_parser_contract.md` | 冻结 | 已实现 |
-| `admin_permission_contract.md` | 冻结 | 开发中 |
-| `admin_query_contract.md` | 冻结 | 开发中 |
-| `excel_import_contract.md` | 现行决策已冻结，待按最新方案校准实现 | 开发中 |
+| `admin_permission_contract.md` | 冻结 | 已实现 |
+| `admin_query_contract.md` | 冻结 | 已实现 |
+| `excel_import_contract.md` | 现行决策已冻结并完成规则校准 | 未实现 |
 | `import_rollback_contract.md` | 现行决策已冻结，待按最新方案校准实现 | 未实现 |
 
 ## 已确认决策
@@ -55,4 +55,4 @@
 
 ## 当前边界
 
-文档治理阶段只修正文档事实、状态和契约标识，不修改业务代码。管理员和Excel模块须按作业方案各自开发、测试和Review，不得由文档分支提前实现。
+文档治理阶段只修正文档事实、状态和契约标识，不修改业务代码。管理员模块已经合入；下一阶段应从文档治理合并后的最新`develop`开始Excel PR 1，且不得由文档分支提前实现。

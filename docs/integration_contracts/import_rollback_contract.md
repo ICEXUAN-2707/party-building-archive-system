@@ -8,7 +8,7 @@
 | 实现状态 | 未实现 |
 | 提供方 | 成员7，`imports`模块 |
 | 消费方 | 回滚页面、审计、集成测试和灾难恢复流程 |
-| 依据基线 | `develop@42abdf7915e1cfe2cb55d889b07648012b360f7d` |
+| 依据基线 | `develop@d2868b43e9126041226b58fbc2aef1d9e259a07f` |
 | 完整方案 | `docs/sprint/mvp_convergence_governance_plan.md` |
 
 第一版采用服务端JSON业务快照恢复最近成功批次，不新增数据库快照模型或迁移，不修改思想汇报唯一约束。导入前SQLite备份仅用于受控灾难恢复，不作为普通网页回滚的数据源。

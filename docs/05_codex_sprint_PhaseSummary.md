@@ -2,9 +2,9 @@
 
 ## 当前状态
 
-基线：`develop@42abdf7915e1cfe2cb55d889b07648012b360f7d`。
+基线：`develop@d2868b43e9126041226b58fbc2aef1d9e259a07f`。
 
-已完成：工程基础、冻结模型、学生认证、学生个人档案、Excel纯解析器、双平台CI。管理员查询与权限、Excel上传预览、正式导入和最近批次回滚仍在开发。
+已完成：工程基础、冻结模型、学生认证、学生个人档案、Excel纯解析器、管理员认证与查询闭环、双平台CI。Excel上传预览、正式导入和最近批次回滚尚待开发。
 
 当前状态的唯一入口为`docs/current_project_status.md`，完整作业方案为`docs/sprint/mvp_convergence_governance_plan.md`。
 
@@ -12,7 +12,6 @@
 
 ```text
 文档治理
-→ 管理员认证、权限、查询、审计
 → 上传、服务端预览、历史、下载
 → 正式事务导入
 → 最近成功批次回滚与SQLite备份

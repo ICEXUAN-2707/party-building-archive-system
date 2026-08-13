@@ -5,13 +5,13 @@
 | 项目 | 内容 |
 | --- | --- |
 | 契约状态 | 冻结；以2026-08-12决策为准 |
-| 实现状态 | 开发中，尚未合入 `develop@42abdf7` |
-| 最后核验 | 2026-08-12 |
+| 实现状态 | 未实现；管理员依赖已于PR #3合入，等待PR 1 |
+| 最后核验 | 2026-08-13 |
 | 版本 | Sprint 2 / 1.0 |
 | 冻结日期 | 2026-08-09 |
 | 提供方 | 成员7，`imports`模块 |
 | 消费方 | 导入模板、成员2集成测试、管理员查询页面 |
-| 依据基线 | `develop@42abdf7915e1cfe2cb55d889b07648012b360f7d` |
+| 依据基线 | `develop@d2868b43e9126041226b58fbc2aef1d9e259a07f` |
 | 依赖 | `excel_parser_contract.md`、`admin_permission_contract.md`、`docs/spec.md` V1.2 |
 
 本契约冻结上传、预览、确认、批次和业务写入语义；不冻结视图类型、表单类或私有服务拆分方式。
@@ -84,7 +84,7 @@ apps.imports.parser.parse_workbook(file_path: Path) -> ParseResult
 2. 未出现在本批`valid_rows`中的学生及材料逐字段保持不变。
 3. 错误行对应的既有学生及材料保持不变。
 4. 有效行确认成功后更新相关记录的`source_import_batch`或`import_batch`。
-5. 思想汇报替换时先使旧有效记录失效，再创建本批有效记录；不得删除历史记录。
+5. 思想汇报的导入前状态由服务端`rollback_snapshot.json`完整留痕；正式写入时删除该学生旧有效明细，再创建本批有效明细。业务表不依赖多份`is_active=False`记录承担版本历史，避免与现有`(student, sequence_number, is_active)`唯一约束冲突。
 6. 同一学生同一日期重复的思想汇报只保留一次并保留警告；不得补造缺失次数或日期。
 7. `reported_total_count`与计算数不一致允许确认，保留两者并保留警告。
 

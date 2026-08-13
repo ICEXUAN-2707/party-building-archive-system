@@ -6,7 +6,7 @@
 | --- | --- |
 | 审核状态 | 已通过 |
 | 审核日期 | 2026-08-12 |
-| 代码基线 | `develop@42abdf7915e1cfe2cb55d889b07648012b360f7d` |
+| 代码基线 | 原审核基线`develop@42abdf7`；2026-08-13回填至`develop@d2868b4` |
 | 阶段目标 | 文档事实收敛、管理员闭环、Excel上传预览、正式导入、最近批次回滚 |
 | 第一版限制 | 单机、单Django实例、SQLite；不做任意历史或部分回滚 |
 
@@ -102,7 +102,7 @@ pre_import.sqlite3
 
 `rollback_snapshot.json`按学生保存导入前Student、ApplicationRecord、Summary和有效Reports状态，并用`student_existed_before`区分本批新建学生。使用临时文件加原子重命名和SHA-256。
 
-业务写入必须处于`transaction.atomic()`中；错误行不得改变旧数据，警告行可进入导入，原始总篇数不得被计算值覆盖，思想汇报保持真实sequence_number。重复确认、空预览确认和状态冲突返回409。
+业务写入必须处于`transaction.atomic()`中；错误行不得改变旧数据，警告行可进入导入，原始总篇数不得被计算值覆盖，思想汇报保持真实sequence_number。旧有效思想汇报由JSON快照留痕，业务表删除旧有效明细后重建本批有效明细，不堆积多份inactive历史。重复确认、空预览确认和状态冲突返回409。
 
 导入失败时业务写入全部撤销，但保留文件、批次、快照、备份和错误证据，并记录failed状态。
 
