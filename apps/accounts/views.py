@@ -20,9 +20,19 @@ class AdminLoginView(LoginView):
     """管理员业务登录入口（与 Django Admin 路径独立）。"""
 
     template_name = "accounts/admin_login.html"
-    redirect_authenticated_user = True
+    redirect_authenticated_user = False
     # 登录成功后跳转管理员查询后台，而非 Django Admin
     success_url = reverse_lazy("students:admin_student_list")
+
+    def dispatch(self, request, *args, **kwargs):
+        from apps.accounts.permissions import check_admin_role
+        from apps.accounts.models import AdminRole
+
+        if check_admin_role(request.user, AdminRole.VIEWER_ADMIN, AdminRole.DATA_ADMIN):
+            return redirect(self.get_success_url())
+        if request.user.is_authenticated:
+            auth_logout(request)
+        return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
         """登录成功后写入审计日志。"""

@@ -4,6 +4,8 @@
 成员7负责：upload_excel、confirm_import、rollback_import。
 """
 
+from ipaddress import ip_address, ip_network
+
 from .models import OperationLog
 
 
@@ -42,8 +44,18 @@ def get_client_ip(request) -> str:
     from django.conf import settings
 
     trusted_proxies = getattr(settings, "TRUSTED_PROXIES", None)
-    if trusted_proxies:
+    remote_addr = request.META.get("REMOTE_ADDR", "")
+    remote_is_trusted = False
+    if trusted_proxies and remote_addr:
+        try:
+            remote_ip = ip_address(remote_addr)
+            remote_is_trusted = any(
+                remote_ip in ip_network(proxy, strict=False) for proxy in trusted_proxies
+            )
+        except ValueError:
+            remote_is_trusted = False
+    if remote_is_trusted:
         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
         if x_forwarded_for:
             return x_forwarded_for.split(",")[0].strip()
-    return request.META.get("REMOTE_ADDR", "")
+    return remote_addr

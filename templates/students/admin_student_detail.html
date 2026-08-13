@@ -29,44 +29,30 @@
   <div class="col-md-6">
     <div class="page-panel">
       <h2 class="h6 mb-3 text-secondary text-uppercase">党务材料</h2>
-      {% with app=student.application_record %}
       <p class="mb-2"><span class="text-secondary">申请入党时间：</span>
-        {% if app and app.applied_at %}{{ app.applied_at|date:"Y年n月j日" }}{% else %}—{% endif %}
+        {% if application_record and application_record.applied_at %}{{ application_record.applied_at|date:"Y年n月j日" }}{% else %}—{% endif %}
       </p>
-      {% endwith %}
-      {% with summary=student.report_summary %}
-      {# 原始总数非 None（含0）时展示原始值；为 None 时展示计算值 #}
-      {% if summary and summary.reported_total_count is not None %}
       <p class="mb-2"><span class="text-secondary">Excel填报总篇数：</span>
-        {{ summary.reported_total_count }} 篇
+        {% if reported_total_count is not None %}{{ reported_total_count }} 篇{% else %}—{% endif %}
       </p>
-      <p class="mb-2"><span class="text-secondary">统计来源：</span>Excel原始填报值</p>
-      {% elif summary %}
       <p class="mb-2"><span class="text-secondary">系统计算日期数：</span>
-        {{ summary.calculated_date_count }} 天
+        {{ calculated_date_count }} 天
       </p>
-      <p class="mb-2"><span class="text-secondary">统计来源：</span>系统计算</p>
-      {% else %}
-      <p class="mb-2"><span class="text-secondary">Excel填报总篇数：</span>—</p>
-      <p class="mb-2"><span class="text-secondary">系统计算日期数：</span>—</p>
-      <p class="mb-2"><span class="text-secondary">统计来源：</span>—</p>
-      {% endif %}
+      <p class="mb-2"><span class="text-secondary">当前展示总数：</span>{{ report_count }}</p>
+      <p class="mb-2"><span class="text-secondary">统计来源：</span>{% if report_count_source == "excel" %}Excel原始填报值{% else %}系统计算{% endif %}</p>
       <p class="mb-2"><span class="text-secondary">汇总导入批次：</span>
-        {% if summary and summary.source_import_batch %}{{ summary.source_import_batch }}{% else %}—{% endif %}
+        {% if report_summary and report_summary.source_import_batch %}{{ report_summary.source_import_batch }}{% else %}—{% endif %}
       </p>
-      {% endwith %}
-      {% with reports=student.ideological_reports.all %}
-      {% if reports %}
+      {% if idea_reports %}
       <p class="text-secondary mb-1 mt-3">思想汇报明细（有效记录）：</p>
       <ul class="list-unstyled small mb-0">
-        {% for r in reports %}
+        {% for r in idea_reports %}
         <li>第{{ r.sequence_number }}次 — {{ r.submitted_at|date:"Y年n月j日"|default:"日期待填" }}</li>
         {% endfor %}
       </ul>
       {% else %}
       <p class="text-secondary mb-1 mt-3">思想汇报明细：—</p>
       {% endif %}
-      {% endwith %}
     </div>
   </div>
 
@@ -77,7 +63,7 @@
       <table class="table table-sm mb-0">
         <tbody>
           <tr><th class="text-secondary fw-normal" style="width:8em">学生数据导入批次</th><td>{% if student.source_import_batch %}{{ student.source_import_batch }}{% else %}—{% endif %}</td></tr>
-          <tr><th class="text-secondary fw-normal">最近更新时间</th><td>{{ student.updated_at|date:"Y-m-d H:i" }}</td></tr>
+          <tr><th class="text-secondary fw-normal">最近更新时间</th><td>{{ profile_updated_at|date:"Y年n月j日 H:i" }}</td></tr>
         </tbody>
       </table>
     </div>

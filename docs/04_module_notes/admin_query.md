@@ -72,7 +72,7 @@ Branch: feature/admin-query
 |`templates/accounts/admin_login.html`|登录页模板|
 |`templates/students/admin_student_list.html`|学生列表页（8列+5筛选+分页）|
 |`templates/students/admin_student_detail.html`|学生详情页（含统计来源、有效明细）|
-|`tests/test_admin_query.py`|54个自动化测试|
+|`tests/test_admin_query.py`|59个自动化测试|
 
 ---
 
@@ -84,7 +84,7 @@ Branch: feature/admin-query
 - 按spec实现管理员登录/退出/权限/列表/详情/审计
 - 修复review反馈的7个缺陷
 - 退出改用POST表单
-- 筛选参数校验防500
+- 非法筛选返回200、显示错误且结果为空，避免查询范围扩大
 - 列表补全8个字段+状态筛选
 - 详情补全计算日期数和导入批次
 - 编写14类测试场景
@@ -124,7 +124,7 @@ AI生成：
 
 问题：非法 branch 参数导致 500
 原因：branch_id 直接传入 filter()，非数字时数据库报错
-解决：用 isdigit() 校验，非法值静默忽略
+解决：校验支部、阶段和状态；非法值返回空结果并显示错误，不回退全量数据
 
 问题：列表缺少4个字段、详情缺少统计信息
 原因：初版只实现了基本展示
@@ -198,7 +198,7 @@ AI生成：
 - 查看详情写入 OperationLog
 - 登录日志记录 IP
 - 无 TRUSTED_PROXIES 时使用 REMOTE_ADDR
-- 有 TRUSTED_PROXIES 时信任 X-Forwarded-For
+- 仅当 REMOTE_ADDR 命中 TRUSTED_PROXIES（支持IP/CIDR）时信任 X-Forwarded-For
 - 无头时回退 REMOTE_ADDR
 
 **边界（3项）：**
@@ -258,10 +258,10 @@ IP 提取逻辑：`get_client_ip()` 仅在 `settings.TRUSTED_PROXIES` 配置时�
 核心设计原则：
 1. 权限后端强制校验，不能仅靠前端隐藏
 2. 权限判断统一到 `apps/accounts/permissions.py`，禁止在多处复制
-3. 筛选参数安全校验，非法值静默忽略不报500
+3. 筛选参数安全校验，非法值返回200、错误提示和空结果
 4. 退出必须 POST，防止 CSRF 攻击
 5. 敏感操作写审计日志，可追溯
 6. 审计 IP 默认使用 REMOTE_ADDR，仅在配置可信代理时信任 X-Forwarded-For
 7. 详情只展示 is_active=True 的有效明细，按 sequence_number 排序
-8. 统计来源区分 Excel 原始填报值（reported_total_count is not None）和系统计算（为 None 时），0 不回退
+8. 详情同时展示原始值、计算值、当前值及来源；reported_total_count=0 不回退
 9. 权限工具独立封装，供成员7复用；禁止在导入模块复制角色判断

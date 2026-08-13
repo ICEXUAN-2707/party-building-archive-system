@@ -30,7 +30,12 @@ def check_admin_role(user, *roles: str) -> bool:
 
     成员7可调用此函数进行运行时权限判断，无需复制角色常量。
     """
-    return getattr(user, "role", "") in roles
+    return bool(
+        getattr(user, "is_authenticated", False)
+        and getattr(user, "is_active", False)
+        and getattr(user, "role", "") in {role.value for role in AdminRole}
+        and getattr(user, "role", "") in roles
+    )
 
 
 # ═══════════════════════════════════════════════════════════

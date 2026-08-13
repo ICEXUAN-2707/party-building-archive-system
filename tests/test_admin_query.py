@@ -169,8 +169,12 @@ class AdminLogoutTests(AdminQueryTestCase):
 
     def test_post_logout_clears_session(self) -> None:
         """POST 退出清除认证 Session。"""
+        session = self.client.session
+        session["student_id"] = self.student1.pk
+        session.save()
         response = self.client.post(reverse("accounts:admin_logout"))
         self.assertEqual(response.status_code, 302)
+        self.assertNotIn("student_id", self.client.session)
         # 退出后不应再能访问受保护页面
         list_response = self.client.get(reverse("students:admin_student_list"))
         self.assertNotEqual(list_response.status_code, 200)
@@ -322,11 +326,13 @@ class InvalidFilterTests(AdminQueryTestCase):
         self.client.login(username="viewer01", password="testpass123")
 
     def test_invalid_branch_id_returns_200(self) -> None:
-        """非法支部 ID 不产生 500，静默忽略。"""
+        """非法支部 ID 返回200、错误提示及空结果。"""
         response = self.client.get(
             reverse("students:admin_student_list"), {"branch": "not_a_number"}
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].paginator.count, 0)
+        self.assertContains(response, "党支部筛选值无效")
 
     def test_invalid_branch_id_nonexistent_returns_200(self) -> None:
         """不存在的支部ID不产生500。"""
@@ -334,6 +340,7 @@ class InvalidFilterTests(AdminQueryTestCase):
             reverse("students:admin_student_list"), {"branch": "99999"}
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].paginator.count, 0)
 
     def test_invalid_stage_returns_200(self) -> None:
         """非法阶段值不产生 500。"""
@@ -341,6 +348,8 @@ class InvalidFilterTests(AdminQueryTestCase):
             reverse("students:admin_student_list"), {"stage": "INVALID_STAGE"}
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].paginator.count, 0)
+        self.assertContains(response, "发展阶段筛选值无效")
 
     def test_invalid_status_returns_200(self) -> None:
         """非法状态值不产生 500。"""
@@ -348,6 +357,8 @@ class InvalidFilterTests(AdminQueryTestCase):
             reverse("students:admin_student_list"), {"status": "INVALID_STATUS"}
         )
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["page_obj"].paginator.count, 0)
+        self.assertContains(response, "学生状态筛选值无效")
 
 
 # ──────────────────────────────────────────────
@@ -356,7 +367,7 @@ class InvalidFilterTests(AdminQueryTestCase):
 class PaginationFilterPreservationTests(AdminQueryTestCase):
     def setUp(self) -> None:
         self.client.login(username="viewer01", password="testpass123")
-        # 创建足够多的学生以触发分页（每页50条）
+        # 创建足够多的学生以触发固定20条分页
         for i in range(60):
             Student.objects.create(
                 name=f"批量学生{i:03d}",
@@ -375,6 +386,18 @@ class PaginationFilterPreservationTests(AdminQueryTestCase):
         self.assertEqual(response.status_code, 200)
         # 翻页链接中应保留 name 参数
         self.assertContains(response, "name=")
+
+    def test_pagination_is_fixed_at_twenty(self) -> None:
+        response = self.client.get(reverse("students:admin_student_list"))
+        self.assertEqual(response.context["page_obj"].paginator.per_page, 20)
+        self.assertEqual(len(response.context["students"]), 20)
+
+    def test_page_size_parameter_is_ignored(self) -> None:
+        response = self.client.get(
+            reverse("students:admin_student_list"), {"page_size": 100}
+        )
+        self.assertEqual(response.context["page_obj"].paginator.per_page, 20)
+        self.assertEqual(len(response.context["students"]), 20)
 
 
 # ──────────────────────────────────────────────
@@ -421,12 +444,12 @@ class DetailFieldTests(AdminQueryTestCase):
         )
         self.assertContains(response, "Excel原始填报值")
 
-    def test_detail_does_not_show_calculated_when_raw_exists(self) -> None:
-        """原始值存在时不展示系统计算日期数。"""
+    def test_detail_also_shows_calculated_when_raw_exists(self) -> None:
+        """管理员详情同时展示原始值和系统计算值，便于交叉核验。"""
         response = self.client.get(
             reverse("students:admin_student_detail", kwargs={"pk": self.student1.pk})
         )
-        self.assertNotContains(response, "4 天")
+        self.assertContains(response, "4 天")
 
     # ── 原始值为 None 时 ──
 
@@ -467,7 +490,7 @@ class DetailFieldTests(AdminQueryTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "0 篇")
         self.assertContains(response, "Excel原始填报值")
-        self.assertNotContains(response, "系统计算")
+        self.assertContains(response, "5 天")
 
     # ── 通用 ──
 
@@ -637,6 +660,14 @@ class UnifiedPermissionTests(TestCase):
         anon = AnonymousUser()
         self.assertFalse(check_admin_role(anon, AdminRole.VIEWER_ADMIN))
 
+    def test_check_admin_role_inactive_returns_false(self) -> None:
+        self.viewer.is_active = False
+        self.assertFalse(check_admin_role(self.viewer, AdminRole.VIEWER_ADMIN))
+
+    def test_check_admin_role_unknown_role_returns_false(self) -> None:
+        self.viewer.role = "unknown_admin"
+        self.assertFalse(check_admin_role(self.viewer, "unknown_admin"))
+
     # ── 类视图 Mixin 一致生效 ──
 
     def test_viewer_gets_200_on_list_with_mixin(self) -> None:
@@ -705,6 +736,14 @@ class AuditIPTests(TestCase):
         )
         ip = get_client_ip(request)
         self.assertEqual(ip, "203.0.113.5")
+
+    @override_settings(TRUSTED_PROXIES=["10.0.0.0/8"])
+    def test_ignores_forwarded_for_from_untrusted_remote(self) -> None:
+        from django.test import RequestFactory
+        request = RequestFactory().get("/")
+        request.META["REMOTE_ADDR"] = "192.168.1.100"
+        request.META["HTTP_X_FORWARDED_FOR"] = "203.0.113.5"
+        self.assertEqual(get_client_ip(request), "192.168.1.100")
 
     def test_falls_back_to_remote_addr_when_no_header(self) -> None:
         """无 X-Forwarded-For 头时始终使用 REMOTE_ADDR。"""
