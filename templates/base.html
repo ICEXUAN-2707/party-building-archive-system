@@ -18,14 +18,24 @@
       <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav ms-auto">
           <li class="nav-item"><a class="nav-link" href="{% url 'accounts:student_login' %}">学生登录</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'accounts:admin_login' %}">管理员登录</a></li>
-          <li class="nav-item"><a class="nav-link" href="{% url 'imports:upload' %}">Excel上传</a></li>
-          <li class="nav-item"><a class="nav-link" href="/admin/">Django Admin</a></li>
+          {% if user.is_authenticated %}
+            {% if user.role == 'data_admin' %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'imports:upload' %}">Excel上传</a></li>
+            {% endif %}
+            <li class="nav-item">
+              <form method="post" action="{% url 'accounts:admin_logout' %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="nav-link btn btn-link border-0">退出管理员登录</button>
+              </form>
+            </li>
+          {% else %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'accounts:admin_login' %}">管理员登录</a></li>
+          {% endif %}
           {% if request.session.student_id %}
           <li class="nav-item">
             <form method="POST" action="{% url 'accounts:student_logout' %}" class="d-inline">
               {% csrf_token %}
-              <button type="submit" class="nav-link btn btn-link">退出</button>
+              <button type="submit" class="nav-link btn btn-link">退出学生登录</button>
             </form>
           </li>
           {% endif %}

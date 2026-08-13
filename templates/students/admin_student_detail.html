@@ -1,10 +1,72 @@
 {% extends "base.html" %}
 
-{% block title %}管理员学生详情{% endblock %}
+{% block title %}{{ student.name }} - 学生详情{% endblock %}
 
 {% block content %}
-<div class="page-panel">
-  <h1 class="h3 mb-3">管理员学生详情占位页</h1>
-  <p class="text-secondary">当前仅保留 URL 和模板入口，后续展示学生党务材料详情。</p>
+<div class="d-flex align-items-center gap-3 mb-4">
+  <a href="{% url 'students:admin_student_list' %}" class="btn btn-sm btn-outline-secondary">&larr; 返回列表</a>
+  <h1 class="h4 mb-0">{{ student.name }}</h1>
+</div>
+
+<div class="row g-4">
+  {# ── 基本信息 ── #}
+  <div class="col-md-6">
+    <div class="page-panel">
+      <h2 class="h6 mb-3 text-secondary text-uppercase">基本信息</h2>
+      <table class="table table-sm mb-0">
+        <tbody>
+          <tr><th class="text-secondary fw-normal" style="width:6em">学号</th><td><code>{{ student.student_number }}</code></td></tr>
+          <tr><th class="text-secondary fw-normal">支部</th><td>{{ student.branch.name }}</td></tr>
+          <tr><th class="text-secondary fw-normal">阶段</th><td>{{ student.get_development_stage_display }}</td></tr>
+          <tr><th class="text-secondary fw-normal">职务</th><td>{{ student.position|default:"—" }}</td></tr>
+          <tr><th class="text-secondary fw-normal">状态</th><td>{{ student.get_status_display }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── 党务材料与统计 ── #}
+  <div class="col-md-6">
+    <div class="page-panel">
+      <h2 class="h6 mb-3 text-secondary text-uppercase">党务材料</h2>
+      <p class="mb-2"><span class="text-secondary">申请入党时间：</span>
+        {% if application_record and application_record.applied_at %}{{ application_record.applied_at|date:"Y年n月j日" }}{% else %}—{% endif %}
+      </p>
+      <p class="mb-2"><span class="text-secondary">Excel填报总篇数：</span>
+        {% if reported_total_count is not None %}{{ reported_total_count }} 篇{% else %}—{% endif %}
+      </p>
+      <p class="mb-2"><span class="text-secondary">系统计算日期数：</span>
+        {{ calculated_date_count }} 天
+      </p>
+      <p class="mb-2"><span class="text-secondary">当前展示总数：</span>{{ report_count }}</p>
+      <p class="mb-2"><span class="text-secondary">统计来源：</span>{% if report_count_source == "excel" %}Excel原始填报值{% else %}系统计算{% endif %}</p>
+      <p class="mb-2"><span class="text-secondary">汇总导入批次：</span>
+        {% if report_summary and report_summary.source_import_batch %}{{ report_summary.source_import_batch }}{% else %}—{% endif %}
+      </p>
+      {% if idea_reports %}
+      <p class="text-secondary mb-1 mt-3">思想汇报明细（有效记录）：</p>
+      <ul class="list-unstyled small mb-0">
+        {% for r in idea_reports %}
+        <li>第{{ r.sequence_number }}次 — {{ r.submitted_at|date:"Y年n月j日"|default:"日期待填" }}</li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-secondary mb-1 mt-3">思想汇报明细：—</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── 数据来源 ── #}
+  <div class="col-12">
+    <div class="page-panel">
+      <h2 class="h6 mb-3 text-secondary text-uppercase">数据来源</h2>
+      <table class="table table-sm mb-0">
+        <tbody>
+          <tr><th class="text-secondary fw-normal" style="width:8em">学生数据导入批次</th><td>{% if student.source_import_batch %}{{ student.source_import_batch }}{% else %}—{% endif %}</td></tr>
+          <tr><th class="text-secondary fw-normal">最近更新时间</th><td>{{ profile_updated_at|date:"Y年n月j日 H:i" }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}
