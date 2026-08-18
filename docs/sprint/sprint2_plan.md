@@ -1,6 +1,6 @@
 # Sprint 2 开发计划
 
-> 历史计划：本文保留当时审计与规划，不再作为当前任务或回滚实现依据。当前状态见`docs/current_project_status.md`，2026-08-12审核方案见`docs/sprint/mvp_convergence_governance_plan.md`。
+> 本文保留Sprint 2启动时的审计事实，并已按2026-08-12审核决策校准当前执行门禁。当前状态见`docs/current_project_status.md`，完整方案见`docs/sprint/mvp_convergence_governance_plan.md`，发生冲突时以后两者及冻结契约为准。
 
 ## 1. 基线与审计范围
 
@@ -22,10 +22,10 @@
 | --- | --- | --- | --- |
 | student auth | 成员3 | STABLE | 已合入；`student_id`、`get_current_student()`、`student_required()`、POST退出已冻结并有安全测试 |
 | excel parser | 成员6 | STABLE | 已合入；唯一入口`parse_workbook(Path) -> ParseResult`已冻结，纯解析且数据库零写入 |
-| admin query | 成员5 | NEED_UPDATE | 远端分支落后`develop`31个提交；与学生认证在accounts路由/视图冲突；正式管理员登录和权限尚未进入develop |
-| student profile | 成员4 | NEED_UPDATE | develop仍为公开占位页；旧分支含重复模型、三份越界迁移和临时修复，禁止直接合并 |
-| excel import | 成员7 | BLOCKED | 只有占位页面；导入契约已冻结，仍依赖管理员权限实现；回滚代码依赖变更记录模型与迁移评审 |
-| audit | 成员5提供、成员7消费 | NOT_STARTED | 只有`OperationLog`模型；`record_operation_log()`服务及业务事件尚未进入develop |
+| admin query | 成员5 | STABLE | 管理员登录、统一权限、查询和审计已合入`develop@d2868b4` |
+| student profile | 成员4 | STABLE | 本人只读档案已合入并按冻结Session接口保护 |
+| excel import | 成员7 | NOT_STARTED | 导入与回滚方案已冻结；管理员权限和解析依赖已具备，等待按三个PR实现 |
+| audit | 成员5提供、成员7消费 | STABLE / EXTEND_ON_USE | `record_operation_log()`已合入；Excel模块只消费现有服务和冻结事件 |
 
 ### 2.2 Interface Status
 
@@ -33,11 +33,11 @@
 | --- | --- | --- |
 | student auth | STABLE；规范文件为`student_session_contract.md` | 成员4学生个人页、其他学生只读页面 |
 | excel parser | STABLE；`excel_parser_contract.md` | 成员7上传、预览和确认导入 |
-| admin permission | FROZEN_SPEC / NEED_IMPLEMENTATION；契约已存在但develop无`permissions.py`实现 | 成员5查询、成员7导入与回滚 |
+| admin permission | FROZEN / IMPLEMENTED；`permissions.py`已合入 | 成员5查询、成员7导入与回滚 |
 | student profile | FROZEN；`student_profile_contract.md` | 学生页面模板、学生流程集成测试 |
 | admin query | FROZEN；`admin_query_contract.md` | 管理员模板、成员2集成测试 |
 | excel import | FROZEN；`excel_import_contract.md` | 上传、预览、确认、历史、审计 |
-| import rollback | FROZEN_SPEC / NEED_MODEL_IMPLEMENTATION；`import_rollback_contract.md` | 回滚服务、审计、成员2集成测试 |
+| import rollback | FROZEN / NEED_IMPLEMENTATION；采用服务端JSON业务快照，不新增模型或迁移 | 回滚服务、审计、成员2集成测试 |
 
 `student_auth_contract`不得再创建同义文件；其唯一规范载体继续使用`student_session_contract.md`。如确需更名，必须一次性更新代码注释、Module Notes和成员4测试，不允许双文件并存。
 
@@ -45,13 +45,9 @@
 
 | 优先级 | 技术债 | 影响 | Sprint 2处理 |
 | --- | --- | --- | --- |
-| P0 | 学生个人页、管理员查询页、导入页目前均可匿名访问占位URL | 权限闭环不存在，状态码不能代表业务可用 | 成员4/5/7分别在后端入口接入冻结权限 |
-| P0 | 管理员权限契约已有但实现未合入 | Excel导入无法安全开发，viewer/data_admin无实际差异 | 成员5先交付唯一权限工具和管理员认证 |
-| P0 | 学生个人页旧分支重复创建`ApplicationRecord`、`IdeologicalReport`并修改`Student.branch` | 破坏冻结模型并产生双数据源 | 废弃旧净差异，从最新develop干净重建页面 |
-| P0 | 回滚规则已冻结，但`ImportChangeRecord`模型与迁移尚未评审实现 | 当前仍无法生成可验证的恢复证据 | 成员7先提交变更记录模型、迁移和同事务测试设计评审 |
-| P1 | 管理员查询旧分支落后且与认证模块冲突 | 直接合并会覆盖稳定学生认证 | 人工迁移业务差异，不整体合并旧分支 |
-| P1 | README和首页仍声明学生认证、Excel解析未实现 | 交接信息与develop不一致 | 成员1在Sprint 2集成后更新状态文档 |
-| P1 | 现有全量测试验证模块较多，但没有develop上的学生完整页面、管理员查询、上传预览端到端闭环 | 模块通过不等于业务闭环通过 | 成员2建立跨模块集成测试门禁 |
+| P0 | Excel上传、预览、确认和回滚尚未实现 | 第一版业务闭环不能验收 | 成员7按服务端快照方案完成三个PR，成员2建立端到端门禁 |
+| P0 | 旧计划和任务卡仍引用已废弃的结构化变更记录方案 | 可能诱导新增冻结范围外模型和迁移 | 统一改为JSON业务快照、SHA-256校验和SQLite灾备边界 |
+| P1 | Excel尚无上传到查询、审计和回滚的端到端闭环 | 模块测试不能证明产品可用 | 成员2在同一候选SHA建立跨模块集成测试门禁 |
 | P2 | Review文档目录与命名不统一，旧任务汇总状态过期 | 新成员可能读取错误任务或契约 | 新增Sprint 2唯一任务目录和Review索引 |
 | P2 | 旧远端分支长期保留且作者信息部分仍为“你的名字” | 可追溯性和误合并风险 | 不从旧分支继续开发；成员提交前校验Git身份 |
 | P3 | 部分占位模板和首页导航在权限实现前展示所有入口 | 用户体验不完整，但后端安全优先 | 后端门禁完成后再调整导航可见性 |
@@ -94,7 +90,7 @@
 | 预览 | NOT_STARTED | 仅占位模板，无ParseResult消费 |
 | 确认导入 | NOT_STARTED | 无服务、事务和幂等实现 |
 | 日志 | NOT_STARTED | 只有模型和权限契约中的事件名称 |
-| 回滚 | BLOCKED | 规则已冻结；`ImportChangeRecord`模型、迁移和同事务证据尚未评审实现 |
+| 回滚 | NOT_STARTED | 采用服务端JSON业务快照；需先评审schema、字段白名单、哈希绑定、冲突判定和事务恢复方案 |
 
 ## 4. Sprint目标
 
@@ -105,7 +101,7 @@
 3. Excel上传、解析、预览、确认导入、历史、审计和最近一次成功批次回滚形成单一服务链。
 4. 所有新跨模块接口先冻结、后编码，最终在同一`develop`候选SHA完成端到端测试。
 
-回滚业务规则已冻结；若`ImportChangeRecord`模型、迁移和同事务记录方案在Sprint中点前未通过评审，Sprint 2的承诺范围降级为“上传→解析→预览→确认导入→审计”，回滚代码保持BLOCKED，不得以不可验证的临时实现代替。
+回滚业务规则已冻结。实现前必须评审`rollback_snapshot.json`的schema、可恢复字段白名单、SHA-256及批次绑定、冲突判定和单事务恢复方案；第一版不新增数据库快照模型或迁移，不修改思想汇报唯一约束。证据不完整时回滚代码保持BLOCKED，不得以SQLite在线覆盖或无校验恢复替代。
 
 ## 5. 下一轮开发顺序
 
@@ -130,14 +126,16 @@
 ### Gate 3：Excel上传与预览
 
 1. 成员7只调用`parse_workbook()`，接入`data_admin_required`。
-2. 保存文件、校验类型/大小/哈希，生成预览批次。
+2. 保存文件、校验类型/大小/哈希，生成带`schema_version`的服务端预览快照。
 3. 显示Sheet、有效行、错误和警告；预览阶段业务表零写入。
+4. 历史和详情允许`viewer_admin`与`data_admin`，上传、预览、确认和原文件下载只允许`data_admin`。
 
 ### Gate 4：确认导入、审计与回滚
 
 1. 按已冻结契约实现确认导入事务、幂等和字段映射。
 2. 实现确认导入及OperationLog。
-3. 只有`ImportChangeRecord`模型、迁移和同事务证据通过评审后，才实现最近一次成功批次回滚。
+3. 确认必须校验原文件哈希、快照哈希、schema、批次ID和状态，并只消费校验后的服务端快照。
+4. JSON快照schema、恢复白名单、冲突判定和单事务证据通过评审后，实现最近一次成功批次回滚；SQLite备份只用于受控灾难恢复。
 
 ### Gate 5：Release Candidate
 
@@ -153,14 +151,15 @@
 
 ## 7. 最大风险
 
-最大风险是“在没有实现并验证变更记录模型时直接提供回滚”。导入事务与回滚语义已经冻结，但当前`ImportBatch`只有统计和状态，没有完整的导入前数据或逐字段变更记录。若成员7绕过模型评审直接实现回滚，可能无法区分本批新增、更新和后续人工/批次变化，造成数据丢失。
+最大风险是“在没有生成并验证完整服务端快照时直接提供回滚”。导入事务与回滚语义已经冻结，但`ImportBatch`本身不保存完整导入前状态。若成员7绕过快照schema、哈希和冲突评审直接实现回滚，可能无法区分本批新增、更新和后续人工或批次变化，造成数据丢失。
 
 控制措施：
 
-- 按`import_rollback_contract.md`提交`ImportChangeRecord`模型、迁移和同事务证据，评审通过后解锁回滚实现。
-- 确认导入必须验证文件哈希、批次状态和幂等键。
+- 按`import_rollback_contract.md`提交JSON快照schema、恢复字段白名单、SHA-256与批次绑定和同事务恢复证据，评审通过后解锁回滚实现。
+- 确认导入必须验证文件哈希、快照哈希、schema、批次状态和幂等键。
 - 回滚只能针对当前最新成功且未回滚批次，并在单个数据库事务内完成。
-- 模型与迁移评审未通过时，回滚验收项不得标记完成。
+- 第一版不得新增数据库快照模型或迁移，不得修改思想汇报唯一约束。
+- 快照和恢复方案评审未通过时，回滚验收项不得标记完成。
 
 ## 8. 需要冻结的新接口
 
@@ -169,7 +168,7 @@
 | `student_profile_contract.md` | 成员4 | 模板、集成测试 | FROZEN：身份来源、上下文字段、排序、空数据、展示来源、只读边界 |
 | `admin_query_contract.md` | 成员5 | 管理员模板、集成测试 | FROZEN：登录、POST退出、认证隔离、筛选、分页、详情、404/403语义 |
 | `excel_import_contract.md` | 成员7 | 页面、服务、测试 | FROZEN：上传限制、批次状态、ParseResult映射、预览零写入、确认事务、幂等、审计 |
-| `import_rollback_contract.md` | 成员1/7 | 回滚服务、审计、测试 | FROZEN_SPEC / NEED_MODEL_IMPLEMENTATION：变更记录模型、可回滚判定、恢复范围、冲突、事务语义 |
+| `import_rollback_contract.md` | 成员1/7 | 回滚服务、审计、测试 | FROZEN / NEED_IMPLEMENTATION：JSON快照、哈希绑定、可回滚判定、恢复范围、冲突、事务语义和SQLite灾备边界 |
 
 现有`admin_permission_contract.md`不新建副本，但必须由成员5实现并由成员7消费。审计服务继续作为该契约的一部分；若事件字段需要扩展，应先更新该文件。
 

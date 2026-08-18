@@ -5,6 +5,8 @@ from django.test import SimpleTestCase
 
 from scripts.ci_guard import (
     CI_SQLITE_ARTIFACT_NAMES,
+    PROJECT_ROOT,
+    REQUIRED_TEST_FILES,
     find_absolute_paths,
     find_ci_temp_database_artifacts,
     find_forbidden_tracked_files,
@@ -14,6 +16,57 @@ from scripts.ci_guard import (
 
 
 class RequiredFileGuardTests(SimpleTestCase):
+    STABLE_TEST_FILES = {
+        "tests/test_foundation.py",
+        "tests/test_settings.py",
+        "tests/test_student_auth.py",
+        "tests/test_student_session.py",
+        "tests/test_excel_parser.py",
+        "tests/test_imports_parser_header.py",
+    }
+
+    @staticmethod
+    def _create_required_files(root: Path, *, excluded: set[str] | None = None) -> None:
+        excluded = excluded or set()
+        for relative_path in REQUIRED_TEST_FILES:
+            if relative_path in excluded:
+                continue
+            file_path = root / relative_path
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path.touch()
+
+    def test_required_test_files_include_stable_auth_and_parser_suites(self) -> None:
+        self.assertTrue(self.STABLE_TEST_FILES.issubset(set(REQUIRED_TEST_FILES)))
+
+    def test_all_required_test_files_exist_in_repository(self) -> None:
+        problems = find_missing_required_files(PROJECT_ROOT, REQUIRED_TEST_FILES)
+
+        self.assertEqual(problems, [])
+
+    def test_missing_stable_test_file_is_reported(self) -> None:
+        missing_path = "tests/test_student_session.py"
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._create_required_files(root, excluded={missing_path})
+            problems = find_missing_required_files(root, REQUIRED_TEST_FILES)
+
+        self.assertEqual(len(problems), 1)
+        self.assertEqual(problems[0].rule, "required-file")
+        self.assertEqual(problems[0].path, missing_path)
+        self.assertEqual(problems[0].message, "required file is missing")
+
+    def test_multiple_missing_stable_test_files_are_all_reported(self) -> None:
+        missing_paths = {
+            "tests/test_student_auth.py",
+            "tests/test_excel_parser.py",
+        }
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            self._create_required_files(root, excluded=missing_paths)
+            problems = find_missing_required_files(root, REQUIRED_TEST_FILES)
+
+        self.assertEqual({problem.path for problem in problems}, missing_paths)
+
     def test_missing_required_file_is_reported(self) -> None:
         with TemporaryDirectory() as temp_dir:
             problems = find_missing_required_files(

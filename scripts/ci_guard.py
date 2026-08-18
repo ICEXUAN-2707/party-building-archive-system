@@ -27,8 +27,12 @@ REQUIRED_PROJECT_FILES: tuple[str, ...] = (
 REQUIRED_TEST_FILES: tuple[str, ...] = (
     "tests/test_ci_database_cleanup.py",
     "tests/test_ci_guard.py",
+    "tests/test_excel_parser.py",
     "tests/test_foundation.py",
+    "tests/test_imports_parser_header.py",
     "tests/test_settings.py",
+    "tests/test_student_auth.py",
+    "tests/test_student_session.py",
 )
 
 TEXT_SUFFIXES: frozenset[str] = frozenset(
