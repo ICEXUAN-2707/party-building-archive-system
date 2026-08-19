@@ -23,7 +23,7 @@
 | 学生个人档案 | 已合入且稳定 | `students:student_profile` |
 | Excel纯解析 | 已合入且稳定 | `apps.imports.parser.parse_workbook` |
 | 管理员认证、查询、权限、审计 | 已合入且稳定 | PR #3；管理员专项59项通过 |
-| Excel上传、服务端预览、历史、下载 | 待开发 | 计划拆分PR 1 |
+| Excel上传、服务端预览、历史、下载 | PR1实现候选 | 等待开发者B确认公共接口、Review和CI |
 | Excel正式导入 | 待开发 | 计划拆分PR 2 |
 | 最近成功批次回滚与备份 | 方案冻结、待开发 | 计划拆分PR 3 |
 | Docker与生产部署 | 未开始 | 业务闭环后推进 |
@@ -37,7 +37,7 @@
 | `excel_parser_contract.md` | 冻结 | 已实现 |
 | `admin_permission_contract.md` | 冻结 | 已实现 |
 | `admin_query_contract.md` | 冻结 | 已实现 |
-| `excel_import_contract.md` | 现行决策已冻结并完成规则校准 | 未实现 |
+| `excel_import_contract.md` | 现行决策已冻结并完成规则校准 | PR1实现候选；PR2未实现 |
 | `import_rollback_contract.md` | 现行决策已冻结，待按最新方案校准实现 | 未实现 |
 
 ## 已确认决策
@@ -55,4 +55,4 @@
 
 ## 当前边界
 
-文档治理阶段只修正文档事实、状态和契约标识，不修改业务代码。管理员模块已经合入；下一阶段应从文档治理合并后的最新`develop`开始Excel PR 1，且不得由文档分支提前实现。
+管理员模块已经合入；Excel PR1已从文档治理后的`develop@b4d8779`形成实现候选。下一步是开发者B确认preview schema和公共安全读取接口，并完成Review、全量测试及CI；PR1合入前不得提前实现PR2或PR3。
