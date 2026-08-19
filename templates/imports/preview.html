@@ -4,7 +4,97 @@
 
 {% block content %}
 <div class="page-panel">
-  <h1 class="h3 mb-3">导入预览占位页</h1>
-  <p class="text-secondary">后续阶段展示工作表识别、错误行、警告行和导入确认信息。</p>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h1 class="h3 mb-1">导入预览</h1>
+      <p class="text-secondary mb-0">批次 #{{ batch.id }} · {{ batch.original_filename }}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'imports:history' %}">历史</a>
+      <a class="btn btn-outline-primary" href="{% url 'imports:download_file' batch.id %}">下载原文件</a>
+    </div>
+  </div>
+
+  {% if evidence_error %}
+    <div class="alert alert-danger" role="alert">{{ evidence_error }}</div>
+  {% else %}
+    <div class="alert alert-success" role="alert">
+      原文件与服务端preview快照完整性校验通过。当前页面只读，尚未执行正式导入。
+    </div>
+
+    {% if conflicts %}
+      <div class="alert alert-danger" role="alert">
+        <strong>批次存在冲突，不能确认：</strong>
+        <ul class="mb-0 mt-2">
+          {% for conflict in conflicts %}<li>{{ conflict.message }}</li>{% endfor %}
+        </ul>
+      </div>
+    {% elif not snapshot.can_confirm %}
+      <div class="alert alert-warning" role="alert">当前批次没有有效候选行，不能确认导入。</div>
+    {% else %}
+      <div class="alert alert-info" role="alert">候选数据已冻结。正式确认入口将在PR2实现。</div>
+    {% endif %}
+
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-lg-3"><div class="border rounded p-3"><div class="text-secondary small">工作表</div><div class="h4 mb-0">{{ statistics.total_sheets }}</div></div></div>
+      <div class="col-6 col-lg-3"><div class="border rounded p-3"><div class="text-secondary small">有效行</div><div class="h4 mb-0">{{ statistics.success_rows }}</div></div></div>
+      <div class="col-6 col-lg-3"><div class="border rounded p-3"><div class="text-secondary small">跳过行</div><div class="h4 mb-0">{{ statistics.skipped_rows }}</div></div></div>
+      <div class="col-6 col-lg-3"><div class="border rounded p-3"><div class="text-secondary small">警告行</div><div class="h4 mb-0">{{ statistics.warning_rows }}</div></div></div>
+    </div>
+
+    <h2 class="h5">工作表结果</h2>
+    <div class="table-responsive mb-4">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>工作表</th><th>支部</th><th>状态</th><th>总行</th><th>有效</th><th>错误</th><th>警告</th></tr></thead>
+        <tbody>
+          {% for sheet in sheet_results %}
+            <tr>
+              <td>{{ sheet.sheet_name }}</td><td>{{ sheet.branch_name|default:"未识别" }}</td><td>{{ sheet.status }}</td>
+              <td>{{ sheet.total_rows }}</td><td>{{ sheet.valid_row_count }}</td><td>{{ sheet.error_count }}</td><td>{{ sheet.warning_count }}</td>
+            </tr>
+          {% empty %}<tr><td colspan="7" class="text-secondary">没有工作表结果。</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h2 class="h5">有效候选行</h2>
+    <div class="table-responsive mb-4">
+      <table class="table table-sm align-middle">
+        <thead><tr><th>Sheet/行</th><th>姓名</th><th>学号</th><th>支部</th><th>阶段</th><th>申请时间</th><th>总篇数</th><th>有效日期</th></tr></thead>
+        <tbody>
+          {% for row in valid_rows %}
+            <tr>
+              <td>{{ row.sheet_name }}/{{ row.excel_row_number }}</td><td>{{ row.name }}</td><td>{{ row.student_number }}</td>
+              <td>{{ row.branch_name }}</td><td>{{ row.development_stage }}</td>
+              <td>{% if row.applied_at %}{{ row.applied_at|date:"Y年n月j日" }}{% else %}-{% endif %}</td>
+              <td>{{ row.reported_total_count|default_if_none:"未填报" }}</td><td>{{ row.calculated_date_count }}</td>
+            </tr>
+            {% if row.report_items %}
+              <tr><td></td><td colspan="7" class="small text-secondary">
+                {% for item in row.report_items %}第{{ item.sequence_number }}次：{{ item.submitted_at|date:"Y年n月j日" }}{% if not forloop.last %}；{% endif %}{% endfor %}
+              </td></tr>
+            {% endif %}
+          {% empty %}<tr><td colspan="8" class="text-secondary">没有有效候选行。</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <h2 class="h5">跳过的错误</h2>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Sheet/行</th><th>代码</th><th>说明</th></tr></thead><tbody>
+          {% for error in errors %}<tr><td>{{ error.sheet_name }}/{{ error.excel_row_number }}</td><td><code>{{ error.error_code }}</code></td><td>{{ error.error_message }}</td></tr>
+          {% empty %}<tr><td colspan="3" class="text-secondary">无错误。</td></tr>{% endfor %}
+        </tbody></table></div>
+      </div>
+      <div class="col-lg-6">
+        <h2 class="h5">警告</h2>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Sheet/行</th><th>代码</th><th>说明</th></tr></thead><tbody>
+          {% for warning in warnings %}<tr><td>{{ warning.sheet_name }}/{{ warning.excel_row_number }}</td><td><code>{{ warning.warning_code }}</code></td><td>{{ warning.warning_message }}</td></tr>
+          {% empty %}<tr><td colspan="3" class="text-secondary">无警告。</td></tr>{% endfor %}
+        </tbody></table></div>
+      </div>
+    </div>
+  {% endif %}
 </div>
 {% endblock %}

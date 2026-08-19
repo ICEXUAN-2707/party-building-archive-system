@@ -11,7 +11,7 @@
 ### PR1
 
 - 远端分支：`feature/excel-import`
-- 基线：当前最新`develop@5765e54`，开发前再次fetch确认
+- 基线：`develop@b4d8779604b503cc0508842e7603b7030e1c45c1`（2026-08-19开发前已fetch确认）
 - PR目标：`develop`
 - 推荐提交拆分：文件验证与存储、预览快照、View/模板、历史下载、测试文档
 

@@ -4,7 +4,25 @@
 
 {% block content %}
 <div class="page-panel">
-  <h1 class="h3 mb-3">导入历史占位页</h1>
-  <p class="text-secondary">后续阶段展示导入批次、状态、统计信息和回滚入口。</p>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div><h1 class="h3 mb-1">导入历史</h1><p class="text-secondary mb-0">查看服务器保存的Excel批次及预览统计。</p></div>
+    {% if user.role == 'data_admin' %}<a class="btn btn-primary" href="{% url 'imports:upload' %}">上传Excel</a>{% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead><tr><th>批次</th><th>文件名</th><th>状态</th><th>工作表</th><th>有效/跳过</th><th>操作人</th><th></th></tr></thead>
+      <tbody>
+        {% for batch in batches %}
+          <tr>
+            <td>#{{ batch.id }}<div class="small text-secondary">{{ batch.batch_label }}</div></td>
+            <td>{{ batch.original_filename }}</td><td>{{ batch.get_status_display }}</td>
+            <td>{{ batch.success_sheets }}/{{ batch.total_sheets }}</td><td>{{ batch.success_rows }}/{{ batch.skipped_rows }}</td>
+            <td>{{ batch.imported_by|default:"-" }}</td>
+            <td><a class="btn btn-sm btn-outline-secondary" href="{% url 'imports:batch_detail' batch.id %}">详情</a></td>
+          </tr>
+        {% empty %}<tr><td colspan="7" class="text-center text-secondary py-4">暂无导入批次。</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 {% endblock %}

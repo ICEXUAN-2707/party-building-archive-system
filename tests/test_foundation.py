@@ -25,13 +25,15 @@ class FoundationPageTests(TestCase):
             "students:student_profile",
             "students:admin_student_list",
             "imports:upload",
-            "imports:preview",
             "imports:history",
         ]
         for name in url_names:
             with self.subTest(name=name):
                 self.assertIsNotNone(resolve(reverse(name)))
         self.assertIsNotNone(resolve(reverse("students:admin_student_detail", kwargs={"pk": 1})))
+        self.assertIsNotNone(resolve(reverse("imports:preview", kwargs={"batch_id": 1})))
+        self.assertIsNotNone(resolve(reverse("imports:batch_detail", kwargs={"batch_id": 1})))
+        self.assertIsNotNone(resolve(reverse("imports:download_file", kwargs={"batch_id": 1})))
 
 
 class BranchCommandTests(TestCase):

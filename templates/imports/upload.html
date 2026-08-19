@@ -4,8 +4,38 @@
 
 {% block content %}
 <div class="page-panel">
-  <h1 class="h3 mb-3">Excel上传占位页</h1>
-  <p class="text-secondary">当前不实现 Excel 解析和正式导入，仅保留上传入口结构。</p>
-  <button class="btn btn-primary" type="button" disabled>上传功能后续实现</button>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h1 class="h3 mb-1">Excel上传与预览</h1>
+      <p class="text-secondary mb-0">仅生成服务端预览证据，不会写入学生及材料业务表。</p>
+    </div>
+    <a class="btn btn-outline-secondary" href="{% url 'imports:history' %}">查看导入历史</a>
+  </div>
+
+  <div class="alert alert-info" role="alert">
+    仅接受 <strong>.xlsx</strong> 文件，最大 <strong>10 MiB</strong>。上传后将保存原文件、SHA-256和服务端预览快照。
+  </div>
+
+  <form method="post" enctype="multipart/form-data" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}
+      <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+    {% endif %}
+    <div class="mb-3">
+      <label class="form-label" for="{{ form.excel_file.id_for_label }}">{{ form.excel_file.label }}</label>
+      <input
+        class="form-control{% if form.excel_file.errors %} is-invalid{% endif %}"
+        type="file"
+        name="{{ form.excel_file.html_name }}"
+        id="{{ form.excel_file.id_for_label }}"
+        accept=".xlsx"
+        required
+      >
+      {% for error in form.excel_file.errors %}
+        <div class="invalid-feedback">{{ error }}</div>
+      {% endfor %}
+    </div>
+    <button class="btn btn-primary" type="submit">上传并生成预览</button>
+  </form>
 </div>
 {% endblock %}

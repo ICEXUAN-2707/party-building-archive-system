@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}导入批次详情{% endblock %}
+
+{% block content %}
+<div class="page-panel">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div><h1 class="h3 mb-1">导入批次 #{{ batch.id }}</h1><p class="text-secondary mb-0">{{ batch.original_filename }}</p></div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{% url 'imports:history' %}">返回历史</a>
+      {% if user.role == 'data_admin' %}
+        <a class="btn btn-outline-primary" href="{% url 'imports:preview' batch.id %}">查看预览</a>
+        <a class="btn btn-primary" href="{% url 'imports:download_file' batch.id %}">下载原文件</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <dl class="row">
+    <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ batch.get_status_display }}</dd>
+    <dt class="col-sm-3">SHA-256</dt><dd class="col-sm-9"><code class="text-break">{{ batch.file_hash }}</code></dd>
+    <dt class="col-sm-3">操作人</dt><dd class="col-sm-9">{{ batch.imported_by|default:"-" }}</dd>
+    <dt class="col-sm-3">正式导入时间</dt><dd class="col-sm-9">{% if batch.imported_at %}{{ batch.imported_at|date:"Y年n月j日 H:i" }}{% else %}尚未正式导入{% endif %}</dd>
+    <dt class="col-sm-3">回滚时间</dt><dd class="col-sm-9">{% if batch.rolled_back_at %}{{ batch.rolled_back_at|date:"Y年n月j日 H:i" }}{% else %}-{% endif %}</dd>
+  </dl>
+
+  <h2 class="h5 mt-4">统计</h2>
+  <div class="table-responsive mb-4"><table class="table table-sm"><thead><tr><th>工作表</th><th>成功Sheet</th><th>失败Sheet</th><th>总行</th><th>有效</th><th>跳过</th><th>警告行</th></tr></thead>
+    <tbody><tr><td>{{ batch.total_sheets }}</td><td>{{ batch.success_sheets }}</td><td>{{ batch.failed_sheets }}</td><td>{{ batch.total_rows }}</td><td>{{ batch.success_rows }}</td><td>{{ batch.skipped_rows }}</td><td>{{ batch.warning_rows }}</td></tr></tbody>
+  </table></div>
+
+  <div class="row g-4">
+    <div class="col-lg-6"><h2 class="h5">错误（{{ errors|length }}）</h2><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Sheet/行</th><th>代码</th><th>说明</th></tr></thead><tbody>
+      {% for error in errors %}<tr><td>{{ error.sheet_name }}/{{ error.excel_row_number }}</td><td><code>{{ error.error_code }}</code></td><td>{{ error.error_message }}</td></tr>{% empty %}<tr><td colspan="3" class="text-secondary">无错误。</td></tr>{% endfor %}
+    </tbody></table></div></div>
+    <div class="col-lg-6"><h2 class="h5">警告（{{ warnings|length }}）</h2><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Sheet/行</th><th>代码</th><th>说明</th></tr></thead><tbody>
+      {% for warning in warnings %}<tr><td>{{ warning.sheet_name }}/{{ warning.excel_row_number }}</td><td><code>{{ warning.warning_code }}</code></td><td>{{ warning.warning_message }}</td></tr>{% empty %}<tr><td colspan="3" class="text-secondary">无警告。</td></tr>{% endfor %}
+    </tbody></table></div></div>
+  </div>
+</div>
+{% endblock %}
