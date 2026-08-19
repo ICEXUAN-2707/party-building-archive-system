@@ -16,11 +16,7 @@
 
 ## 2. 基线差异自检
 
-`5ff87c36eaa44194bb44e7ccac2f59a28c416477`至本启动基线之间只有以下变化：
-
-```text
-docs/member_tasks/review_followup_20260727/07_excel_import_preparation_spec.md
-```
+`5ff87c36eaa44194bb44e7ccac2f59a28c416477`至本启动基线之间只有“成员7导入准备规格”这一项历史文档变化。该旧任务卡现已清理，当前Excel任务入口为`docs/member_tasks/mvp_excel/README.md`。
 
 该变化没有修改业务代码、测试、模型、迁移或`docs/integration_contracts/`中的冻结契约。原`develop@5ff87c3`已验证的147项测试及迁移结果可作为启动参考，但不能替代各候选SHA和最终发布候选的重新测试。
 
