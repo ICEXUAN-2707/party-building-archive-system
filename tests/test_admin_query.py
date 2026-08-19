@@ -228,10 +228,10 @@ class ViewerPermissionTests(AdminQueryTestCase):
         )
         self.assertEqual(response.status_code, 200)
 
-    def test_viewer_can_access_import_upload(self) -> None:
-        """导入模块权限由成员7负责；当前 viewer 可访问（PR 已回退导入模块改动）。"""
+    def test_viewer_cannot_access_import_upload(self) -> None:
+        """冻结导入契约要求viewer不能访问Excel上传入口。"""
         response = self.client.get(reverse("imports:upload"))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 403)
 
 
 class DataAdminPermissionTests(AdminQueryTestCase):

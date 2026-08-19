@@ -1,10 +1,13 @@
 from django.urls import path
-from django.views.generic import TemplateView
+
+from apps.imports import views
 
 app_name = "imports"
 
 urlpatterns = [
-    path("upload/", TemplateView.as_view(template_name="imports/upload.html"), name="upload"),
-    path("preview/", TemplateView.as_view(template_name="imports/preview.html"), name="preview"),
-    path("history/", TemplateView.as_view(template_name="imports/history.html"), name="history"),
+    path("upload/", views.upload, name="upload"),
+    path("<int:batch_id>/preview/", views.preview, name="preview"),
+    path("history/", views.history, name="history"),
+    path("history/<int:batch_id>/", views.batch_detail, name="batch_detail"),
+    path("<int:batch_id>/file/", views.download_file, name="download_file"),
 ]
