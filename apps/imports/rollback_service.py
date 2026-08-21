@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
-from apps.imports.import_service import verify_pre_import_database_backup
+from django.db import transaction
+from django.http import HttpRequest
+from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
+
+from apps.audit.services import record_operation_log
+from apps.imports.import_service import _confirmation_lock, verify_pre_import_database_backup
 from apps.imports.models import ImportBatch, ImportStatus
 from apps.imports.snapshots import load_preview_snapshot, load_rollback_snapshot
 from apps.imports.storage import ImportEvidenceError
-from apps.materials.models import ApplicationRecord, IdeologicalReportSummary
+from apps.materials.models import ApplicationRecord, IdeologicalReport, IdeologicalReportSummary
 from apps.students.models import Student, StudentStatus
 
 
@@ -37,6 +44,18 @@ class RollbackAssessment:
 
 class RollbackBatchNotFound(Exception):
     """指定导入批次不存在。"""
+
+
+class RollbackRejected(Exception):
+    """回滚资格、证据或当前数据存在冲突。"""
+
+    def __init__(self, assessment: RollbackAssessment):
+        self.assessment = assessment
+        super().__init__("当前批次不满足安全回滚条件。")
+
+
+class RollbackFailed(Exception):
+    """回滚事务执行失败，所有变更已撤销。"""
 
 
 def get_rollback_candidate() -> ImportBatch | None:
@@ -80,6 +99,126 @@ def assess_rollback(batch_id: int) -> RollbackAssessment:
         conflicts=tuple(conflicts),
         impact=impact,
     )
+
+
+def rollback_import(request: HttpRequest, batch_id: int) -> ImportBatch:
+    """在项目级串行锁和单一事务中完整恢复最近成功批次。"""
+    with _confirmation_lock():
+        assessment = assess_rollback(batch_id)
+        if not assessment.eligible:
+            raise RollbackRejected(assessment)
+        try:
+            with transaction.atomic():
+                batch = ImportBatch.objects.select_for_update().get(pk=batch_id)
+                assessment = assess_rollback(batch_id)
+                if not assessment.eligible:
+                    raise RollbackRejected(assessment)
+                rollback = load_rollback_snapshot(batch)
+                _restore_students(batch, rollback)
+                batch.status = ImportStatus.ROLLED_BACK
+                batch.rolled_back_at = timezone.now()
+                batch.rolled_back_by = request.user
+                batch.save(update_fields=["status", "rolled_back_at", "rolled_back_by"])
+                record_operation_log(
+                    request,
+                    action="rollback_import",
+                    target_type="ImportBatch",
+                    target_id=str(batch.pk),
+                    description=f"回滚最近成功Excel导入：{batch.original_filename}",
+                )
+            return batch
+        except RollbackRejected:
+            raise
+        except Exception as exc:
+            raise RollbackFailed("回滚失败，业务数据已完整撤销。") from exc
+
+
+def _restore_students(batch: ImportBatch, rollback: dict[str, Any]) -> None:
+    for record in rollback["students"]:
+        number = record["student_number"]
+        student = Student.objects.select_for_update().get(student_number=number)
+        if not record["student_existed_before"]:
+            student.delete()
+            continue
+        _restore_student(student, record["student"])
+        _restore_application(student, record["application_record"])
+        _restore_summary(student, record["report_summary"])
+        _restore_reports(student, record["active_reports"])
+
+
+def _restore_student(student: Student, snapshot: dict[str, Any]) -> None:
+    student.name = snapshot["name"]
+    student.branch_id = snapshot["branch_id"]
+    student.development_stage = snapshot["development_stage"]
+    student.position = snapshot["position"]
+    student.status = snapshot["status"]
+    student.source_import_batch_id = snapshot["source_import_batch_id"]
+    student.save()
+    Student.objects.filter(pk=student.pk).update(
+        created_at=_parse_datetime(snapshot["created_at"]),
+        updated_at=_parse_datetime(snapshot["updated_at"]),
+    )
+
+
+def _restore_application(student: Student, snapshot: dict[str, Any] | None) -> None:
+    current = ApplicationRecord.objects.filter(student=student)
+    if snapshot is None:
+        current.delete()
+        return
+    record, _ = ApplicationRecord.objects.update_or_create(
+        student=student,
+        defaults={
+            "applied_at": parse_date(snapshot["applied_at"]) if snapshot["applied_at"] else None,
+            "source_import_batch_id": snapshot["source_import_batch_id"],
+        },
+    )
+    ApplicationRecord.objects.filter(pk=record.pk).update(
+        created_at=_parse_datetime(snapshot["created_at"]),
+        updated_at=_parse_datetime(snapshot["updated_at"]),
+    )
+
+
+def _restore_summary(student: Student, snapshot: dict[str, Any] | None) -> None:
+    current = IdeologicalReportSummary.objects.filter(student=student)
+    if snapshot is None:
+        current.delete()
+        return
+    summary, _ = IdeologicalReportSummary.objects.update_or_create(
+        student=student,
+        defaults={
+            "reported_total_count": snapshot["reported_total_count"],
+            "calculated_date_count": snapshot["calculated_date_count"],
+            "source_import_batch_id": snapshot["source_import_batch_id"],
+        },
+    )
+    IdeologicalReportSummary.objects.filter(pk=summary.pk).update(
+        created_at=_parse_datetime(snapshot["created_at"]),
+        updated_at=_parse_datetime(snapshot["updated_at"]),
+    )
+
+
+def _restore_reports(student: Student, snapshots: list[dict[str, Any]]) -> None:
+    student.ideological_reports.filter(is_active=True).delete()
+    for snapshot in snapshots:
+        report = IdeologicalReport.objects.create(
+            id=snapshot["id"],
+            student=student,
+            sequence_number=snapshot["sequence_number"],
+            submitted_at=parse_date(snapshot["submitted_at"]),
+            source_column_name=snapshot["source_column_name"],
+            import_batch_id=snapshot["import_batch_id"],
+            is_active=True,
+        )
+        IdeologicalReport.objects.filter(pk=report.pk).update(
+            created_at=_parse_datetime(snapshot["created_at"])
+        )
+
+
+def _parse_datetime(value: str) -> datetime:
+    parsed = parse_datetime(value)
+    if parsed is None:
+        raise ValueError("回滚时间字段无效。")
+    return parsed
 
 
 def _validate_batch_state(batch: ImportBatch, conflicts: list[RollbackConflict]) -> None:

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}回滚影响预览{% endblock %}
+
+{% block content %}
+<div class="page-panel">
+  <h1 class="h3">回滚影响预览</h1>
+  <p class="text-secondary">批次 #{{ batch.id }} · {{ batch.original_filename }}</p>
+
+  {% if assessment.eligible %}
+    <div class="alert alert-warning">证据和当前数据校验通过。回滚将完整恢复本批导入前状态，此操作不可重复。</div>
+  {% else %}
+    <div class="alert alert-danger">
+      <strong>当前批次不能安全回滚：</strong>
+      <ul class="mb-0 mt-2">{% for conflict in assessment.conflicts %}<li><code>{{ conflict.code }}</code> {{ conflict.message }}{% if conflict.student_number %}（{{ conflict.student_number }}）{% endif %}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+
+  <dl class="row">
+    <dt class="col-sm-4">恢复既有学生</dt><dd class="col-sm-8">{{ assessment.impact.existing_students_to_restore }}</dd>
+    <dt class="col-sm-4">删除本批新学生</dt><dd class="col-sm-8">{{ assessment.impact.new_students_to_delete }}</dd>
+    <dt class="col-sm-4">恢复申请记录</dt><dd class="col-sm-8">{{ assessment.impact.applications_to_restore }}</dd>
+    <dt class="col-sm-4">恢复思想汇报汇总</dt><dd class="col-sm-8">{{ assessment.impact.summaries_to_restore }}</dd>
+    <dt class="col-sm-4">恢复思想汇报明细</dt><dd class="col-sm-8">{{ assessment.impact.reports_to_replace }}</dd>
+  </dl>
+
+  {% if assessment.eligible %}
+    <form method="post" class="mt-4">
+      {% csrf_token %}
+      <input type="hidden" name="confirm_batch_id" value="{{ batch.id }}">
+      <button class="btn btn-danger" type="submit">确认整批回滚</button>
+      <a class="btn btn-outline-secondary" href="{% url 'imports:batch_detail' batch.id %}">取消</a>
+    </form>
+  {% else %}
+    <a class="btn btn-outline-secondary" href="{% url 'imports:batch_detail' batch.id %}">返回批次详情</a>
+  {% endif %}
+</div>
+{% endblock %}

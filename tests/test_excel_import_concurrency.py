@@ -139,3 +139,35 @@ class ConfirmImportConcurrencyTests(TransactionTestCase):
         )
         self.assertEqual(existed_values, [False, True])
         self.assertEqual(OperationLog.objects.filter(action="confirm_import").count(), 2)
+
+    @staticmethod
+    def _rollback_at_barrier(client: Client, url: str, batch_id: int, barrier: Barrier) -> int:
+        close_old_connections()
+        try:
+            barrier.wait(timeout=5)
+            return client.post(url, {"confirm_batch_id": str(batch_id)}).status_code
+        finally:
+            close_old_connections()
+
+    def test_same_batch_near_simultaneous_rollback_has_one_success(self) -> None:
+        batch = self._create_batch("rollback")
+        confirm_client = Client()
+        confirm_client.force_login(self.admin_a)
+        self.assertEqual(
+            confirm_client.post(reverse("imports:confirm", args=[batch.pk])).status_code,
+            302,
+        )
+        clients = self._clients()
+        barrier = Barrier(2)
+        url = reverse("imports:rollback", args=[batch.pk])
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [
+                pool.submit(self._rollback_at_barrier, client, url, batch.pk, barrier)
+                for client in clients
+            ]
+            statuses = [future.result(timeout=20) for future in futures]
+        batch.refresh_from_db()
+        self.assertEqual(sorted(statuses), [302, 409])
+        self.assertEqual(batch.status, ImportStatus.ROLLED_BACK)
+        self.assertFalse(Student.objects.filter(student_number="20260001").exists())
+        self.assertEqual(OperationLog.objects.filter(action="rollback_import").count(), 1)
