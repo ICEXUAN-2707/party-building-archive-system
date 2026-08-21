@@ -214,6 +214,7 @@ tempCodeRunnerFile.py
 media/imports/*
 !media/imports/.gitkeep
 backups/
+disaster_restore_backups/
 *.sqlite3
 *.xlsx
 *.xls

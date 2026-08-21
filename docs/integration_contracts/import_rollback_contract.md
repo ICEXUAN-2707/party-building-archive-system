@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 契约状态 | 冻结；以2026-08-12第一版方案为准 |
-| 实现状态 | PR3阶段一至五已实现回滚评估页面、二次确认及最近成功批次单事务恢复；灾难恢复命令未实现 |
+| 实现状态 | PR3阶段一至六已实现最近成功批次业务回滚及受控SQLite灾难恢复命令 |
 | 提供方 | 成员7，`imports`模块 |
 | 消费方 | 回滚页面、审计、集成测试和灾难恢复流程 |
 | 依据基线 | `develop@d2868b43e9126041226b58fbc2aef1d9e259a07f` |
@@ -74,6 +74,15 @@ verify_pre_import_database_backup(batch: ImportBatch) -> Path
 ## 6. SQLite灾难恢复
 
 `pre_import.sqlite3`仅通过受控管理命令或运维流程恢复：必须维护停机、恢复前再次备份当前数据库、校验来源与完整性，并在恢复后运行迁移、系统检查和数据一致性验证。禁止Web View在线替换数据库文件。
+
+正式命令为：
+
+```text
+python manage.py restore_import_backup --batch-id <id> --verify-only
+python manage.py restore_import_backup --batch-id <id> --confirm --maintenance-mode
+```
+
+默认模式只验证。正式恢复拒绝非SQLite、内存数据库、批次绑定不一致、关键表缺失及存在journal/WAL/SHM边车文件的环境；替换前生成当前库保护备份和SHA-256，使用同目录临时文件原子替换，替换后验证失败自动尝试回退。
 
 ## 7. 测试门禁
 

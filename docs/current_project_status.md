@@ -6,9 +6,9 @@
 | --- | --- |
 | 核验日期 | 2026-08-21 |
 | 集成分支 | `develop` |
-| 核验 SHA | `5c896a1a4fa69d2953cd8a82a2e79b578e978022`（PR3开发基线） |
-| 最新合并 | PR #20，Excel正式事务导入与证据链 |
-| 本地验证 | `check`通过；无迁移变化；315项测试通过；PR2真实并发及PR3评估专项通过；`git diff --check`通过 |
+| 核验 SHA | `197d240844dc5d4c34ca7ccc17ebf96578958b3d` |
+| 最新合并 | PR #21，最近成功批次安全回滚阶段一至五 |
+| 本地验证 | PR #21双平台CI通过；阶段六15项专项及全仓库338项测试通过；系统检查和迁移漂移检查通过 |
 | 业务规范 | `docs/spec.md` |
 | 当前作业方案 | `docs/sprint/mvp_convergence_governance_plan.md` |
 
@@ -25,7 +25,7 @@
 | 管理员认证、查询、权限、审计 | 已合入且稳定 | PR #3；管理员专项59项通过 |
 | Excel上传、服务端预览、历史、下载 | 已合入 | PR #19；`develop@c113c1e` |
 | Excel正式导入 | 已合入 | PR #20；`develop@5c896a1` |
-| 最近成功批次回滚与备份 | PR3阶段一至五实现候选 | 影响预览、二次确认、冲突检测、单事务恢复和审计已实现；灾难恢复命令待开发 |
+| 最近成功批次回滚与备份 | PR3阶段一至六实现候选 | 业务回滚已合入；灾难恢复命令、恢复前保护备份及原子替换已实现，待全量门禁和Review |
 | Docker与生产部署 | 未开始 | 业务闭环后推进 |
 
 ## 契约实现矩阵
@@ -37,8 +37,8 @@
 | `excel_parser_contract.md` | 冻结 | 已实现 |
 | `admin_permission_contract.md` | 冻结 | 已实现 |
 | `admin_query_contract.md` | 冻结 | 已实现 |
-| `excel_import_contract.md` | 现行决策已冻结并完成规则校准 | PR1已合入；PR2实现候选 |
-| `import_rollback_contract.md` | 现行决策已冻结 | PR2证据生成已实现；PR3恢复未实现 |
+| `excel_import_contract.md` | 现行决策已冻结并完成规则校准 | PR1、PR2已合入 |
+| `import_rollback_contract.md` | 现行决策已冻结 | PR3阶段一至六实现候选 |
 
 ## 已确认决策
 
@@ -55,4 +55,4 @@
 
 ## 当前边界
 
-管理员模块、Excel PR1和PR2已经合入。PR3已从`develop@5c896a1`完成阶段一至五候选；下一步是灾难恢复管理命令及联合验收。
+管理员模块、Excel PR1、PR2及PR3业务回滚已经合入。阶段六灾难恢复命令完成实现候选后，下一步是开发者B正式Review及约1500条合成数据联合验收；真实数据到达前以合成Excel完成同路径预演。
