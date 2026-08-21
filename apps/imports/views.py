@@ -8,7 +8,7 @@ from django.http import FileResponse, Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_date
-from django.views.decorators.http import require_GET, require_http_methods
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.accounts.permissions import (
     data_admin_required,
@@ -18,6 +18,7 @@ from apps.audit.services import record_operation_log
 from apps.imports import error_codes
 from apps.imports.datatypes import ParseError, ParseResult, ParseWarning
 from apps.imports.forms import ExcelUploadForm
+from apps.imports.import_service import ConfirmImportConflict, ConfirmImportFailed, confirm_import
 from apps.imports.models import ImportBatch, ImportErrorRecord, ImportWarningRecord
 from apps.imports.parser import parse_workbook
 from apps.imports.snapshots import build_preview_snapshot, load_preview_snapshot, write_preview_snapshot
@@ -93,6 +94,22 @@ def preview(request: HttpRequest, batch_id: int) -> HttpResponse:
             "warnings": batch.warning_records.all(),
         },
     )
+
+
+@data_admin_required
+@require_POST
+def confirm(request: HttpRequest, batch_id: int) -> HttpResponse:
+    """校验冻结证据并执行整批原子导入。"""
+    if not ImportBatch.objects.filter(pk=batch_id).exists():
+        raise Http404("导入批次不存在。")
+    try:
+        batch = confirm_import(request, batch_id)
+    except (ConfirmImportConflict, ImportEvidenceNotFound, ImportEvidenceIntegrityError) as exc:
+        return HttpResponse(str(exc), status=409)
+    except ConfirmImportFailed:
+        logger.exception("Excel正式导入失败", extra={"batch_id": batch_id})
+        return HttpResponse("正式导入失败，业务数据未发生部分写入。", status=500)
+    return redirect("imports:batch_detail", batch_id=batch.pk)
 
 
 @viewer_or_data_admin_required

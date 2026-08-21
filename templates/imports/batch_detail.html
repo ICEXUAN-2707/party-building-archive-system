@@ -20,6 +20,7 @@
     <dt class="col-sm-3">SHA-256</dt><dd class="col-sm-9"><code class="text-break">{{ batch.file_hash }}</code></dd>
     <dt class="col-sm-3">操作人</dt><dd class="col-sm-9">{{ batch.imported_by|default:"-" }}</dd>
     <dt class="col-sm-3">正式导入时间</dt><dd class="col-sm-9">{% if batch.imported_at %}{{ batch.imported_at|date:"Y年n月j日 H:i" }}{% else %}尚未正式导入{% endif %}</dd>
+    {% if batch.failure_message %}<dt class="col-sm-3">失败摘要</dt><dd class="col-sm-9"><code>{{ batch.failure_message }}</code></dd>{% endif %}
     <dt class="col-sm-3">回滚时间</dt><dd class="col-sm-9">{% if batch.rolled_back_at %}{{ batch.rolled_back_at|date:"Y年n月j日 H:i" }}{% else %}-{% endif %}</dd>
   </dl>
 

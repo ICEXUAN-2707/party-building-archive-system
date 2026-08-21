@@ -8,7 +8,7 @@ class ImportBatchAdmin(admin.ModelAdmin):
     list_display = ("batch_label", "original_filename", "status", "imported_by", "imported_at")
     list_filter = ("status", "imported_at")
     search_fields = ("batch_label", "original_filename", "file_hash")
-    readonly_fields = ("rolled_back_at",)
+    readonly_fields = ("failure_message", "rolled_back_at")
 
 
 @admin.register(ImportErrorRecord)

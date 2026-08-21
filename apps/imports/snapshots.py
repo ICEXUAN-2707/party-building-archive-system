@@ -25,6 +25,9 @@ from apps.imports.storage import (
 PREVIEW_SCHEMA_VERSION = 1
 PREVIEW_FILENAME = "preview.json"
 PREVIEW_HASH_FILENAME = "preview.sha256"
+ROLLBACK_SCHEMA_VERSION = 1
+ROLLBACK_FILENAME = "rollback_snapshot.json"
+ROLLBACK_HASH_FILENAME = "rollback_snapshot.sha256"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _STATISTIC_FIELDS = (
     "total_sheets",
@@ -122,6 +125,99 @@ def load_preview_snapshot(batch: ImportBatch) -> dict[str, Any]:
         raise ImportEvidenceIntegrityError("预览快照不是有效JSON。") from exc
     validate_preview_snapshot(snapshot, batch=batch, verify_original=False)
     return snapshot
+
+
+def load_rollback_snapshot(batch: ImportBatch) -> dict[str, Any]:
+    """读取并完整校验供PR3消费的导入前业务快照。"""
+    snapshot_path = artifact_path(batch.pk, ROLLBACK_FILENAME)
+    hash_path = artifact_path(batch.pk, ROLLBACK_HASH_FILENAME)
+    if not snapshot_path.is_file() or not hash_path.is_file():
+        raise ImportEvidenceNotFound("回滚快照不存在。")
+    payload = snapshot_path.read_bytes()
+    expected_hash = hash_path.read_text(encoding="ascii").strip()
+    if not _SHA256_PATTERN.fullmatch(expected_hash):
+        raise ImportEvidenceIntegrityError("回滚快照哈希格式无效。")
+    if hashlib.sha256(payload).hexdigest() != expected_hash:
+        raise ImportEvidenceIntegrityError("回滚快照完整性校验失败。")
+    try:
+        snapshot = json.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ImportEvidenceIntegrityError("回滚快照不是有效JSON。") from exc
+    validate_rollback_snapshot(snapshot, batch=batch)
+    return snapshot
+
+
+def validate_rollback_snapshot(snapshot: object, *, batch: ImportBatch) -> None:
+    if not isinstance(snapshot, dict):
+        raise ImportEvidenceIntegrityError("回滚快照顶层必须是对象。")
+    if snapshot.get("schema_version") != ROLLBACK_SCHEMA_VERSION:
+        raise ImportEvidenceIntegrityError("回滚快照schema版本无效。")
+    if snapshot.get("import_batch_id") != batch.pk:
+        raise ImportEvidenceIntegrityError("回滚快照与批次不匹配。")
+    if parse_datetime(snapshot.get("created_at", "")) is None:
+        raise ImportEvidenceIntegrityError("回滚快照创建时间无效。")
+    preview_hash_path = artifact_path(batch.pk, PREVIEW_HASH_FILENAME)
+    if not preview_hash_path.is_file():
+        raise ImportEvidenceNotFound("预览快照哈希不存在。")
+    preview_hash = preview_hash_path.read_text(encoding="ascii").strip()
+    if not _SHA256_PATTERN.fullmatch(preview_hash):
+        raise ImportEvidenceIntegrityError("预览快照哈希格式无效。")
+    if snapshot.get("preview_sha256") != preview_hash:
+        raise ImportEvidenceIntegrityError("回滚快照与预览证据不匹配。")
+    students = snapshot.get("students")
+    if not isinstance(students, list):
+        raise ImportEvidenceIntegrityError("回滚学生快照必须是数组。")
+    if snapshot.get("record_count") != len(students):
+        raise ImportEvidenceIntegrityError("回滚快照记录数无效。")
+    numbers: set[str] = set()
+    for index, record in enumerate(students):
+        _validate_rollback_student(record, index)
+        number = record["student_number"]
+        if number in numbers:
+            raise ImportEvidenceIntegrityError("回滚快照存在重复学号。")
+        numbers.add(number)
+
+
+def _validate_rollback_student(record: object, index: int) -> None:
+    if not isinstance(record, dict):
+        raise ImportEvidenceIntegrityError(f"students[{index}]必须是对象。")
+    number = record.get("student_number")
+    existed = record.get("student_existed_before")
+    if not isinstance(number, str) or not number:
+        raise ImportEvidenceIntegrityError(f"students[{index}].student_number无效。")
+    if not isinstance(existed, bool):
+        raise ImportEvidenceIntegrityError(f"students[{index}].student_existed_before无效。")
+    student = record.get("student")
+    application = record.get("application_record")
+    summary = record.get("report_summary")
+    reports = record.get("active_reports")
+    if not isinstance(reports, list):
+        raise ImportEvidenceIntegrityError(f"students[{index}].active_reports无效。")
+    if not existed:
+        if student is not None or application is not None or summary is not None or reports:
+            raise ImportEvidenceIntegrityError("导入前不存在的学生不得包含旧业务状态。")
+        return
+    if not isinstance(student, dict) or student.get("student_number") != number:
+        raise ImportEvidenceIntegrityError("已有学生快照与学号不匹配。")
+    for field in ("id", "branch_id"):
+        _require_positive_integer(student.get(field), f"students[{index}].student.{field}")
+    for field in ("name", "development_stage", "position", "status"):
+        if not isinstance(student.get(field), str):
+            raise ImportEvidenceIntegrityError(f"students[{index}].student.{field}无效。")
+    for item in (application, summary):
+        if item is not None and not isinstance(item, dict):
+            raise ImportEvidenceIntegrityError("材料快照必须是对象或null。")
+    sequences: set[int] = set()
+    for report in reports:
+        if not isinstance(report, dict) or report.get("is_active") is not True:
+            raise ImportEvidenceIntegrityError("回滚思想汇报必须是有效记录。")
+        sequence = report.get("sequence_number")
+        _require_positive_integer(sequence, "active_reports.sequence_number")
+        if sequence in sequences:
+            raise ImportEvidenceIntegrityError("回滚思想汇报次数重复。")
+        sequences.add(sequence)
+        if not isinstance(report.get("submitted_at"), str) or parse_date(report["submitted_at"]) is None:
+            raise ImportEvidenceIntegrityError("回滚思想汇报日期无效。")
 
 
 def validate_preview_snapshot(
