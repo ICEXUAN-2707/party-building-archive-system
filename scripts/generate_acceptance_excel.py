@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
+import zipfile
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -147,6 +149,7 @@ def _write_main_workbook(path: Path, records: list[dict], *, second_import: bool
         )
     workbook.save(path)
     workbook.close()
+    _normalize_xlsx_archive(path)
 
 
 def _write_invalid_workbook(path: Path) -> None:
@@ -167,6 +170,7 @@ def _write_invalid_workbook(path: Path) -> None:
     failed.append(["无法解析的数据"])
     workbook.save(path)
     workbook.close()
+    _normalize_xlsx_archive(path)
 
 
 def _write_duplicate_workbook(path: Path, record: dict) -> None:
@@ -186,6 +190,31 @@ def _write_duplicate_workbook(path: Path, record: dict) -> None:
     sheet.append(["重复学号学生", *base[1:]])
     workbook.save(path)
     workbook.close()
+    _normalize_xlsx_archive(path)
+
+
+def _normalize_xlsx_archive(path: Path) -> None:
+    """固定ZIP元数据，使相同种子在Windows/Linux生成字节一致的XLSX。"""
+    temporary = path.with_name(f".{path.name}.normalized.tmp")
+    with zipfile.ZipFile(path, "r") as source:
+        entries = [(name, source.read(name)) for name in sorted(source.namelist())]
+    try:
+        with zipfile.ZipFile(
+            temporary,
+            "w",
+            compression=zipfile.ZIP_DEFLATED,
+            compresslevel=9,
+        ) as destination:
+            for name, payload in entries:
+                info = zipfile.ZipInfo(name, date_time=(2026, 8, 22, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.create_system = 0
+                info.external_attr = 0o600 << 16
+                destination.writestr(info, payload, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
+        os.replace(temporary, path)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def main() -> None:
