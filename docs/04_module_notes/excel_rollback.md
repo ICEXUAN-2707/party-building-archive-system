@@ -1,12 +1,12 @@
-# Excel最近成功批次回滚（PR3阶段一至五）
+# Excel最近成功批次回滚与灾难恢复（PR3阶段一至六）
 
 开发基线：`develop@5c896a1a4fa69d2953cd8a82a2e79b578e978022`
 
 分支：`feature/excel-import-rollback`
 
-## 当前范围
+## 阶段一至三评估范围
 
-本阶段只实现只读评估，不增加页面、不修改批次状态、不恢复或删除业务数据：
+阶段一至三实现只读评估，不修改批次状态、不恢复或删除业务数据：
 
 - 复用PR2的preview、rollback snapshot和SQLite备份公共校验接口；
 - 选择当前最新`success`批次；
@@ -50,3 +50,9 @@ assess_rollback(batch_id: int) -> RollbackAssessment
 ## 验证结果
 
 阶段一至五专项覆盖资格、证据、后续修改、权限、CSRF、二次确认、新学生删除、既有学生及全部材料恢复、冲突零变化、重复回滚、审计失败原子撤销和真实双请求并发回滚。全量回归共 323 项测试通过，`manage.py check` 与迁移漂移检查均通过。
+
+## 阶段六
+
+新增`restore_import_backup`管理命令。默认及`--verify-only`只校验；正式恢复要求`--confirm --maintenance-mode`。服务校验SQLite类型、文件完整性、关键表、批次状态和原Excel哈希绑定，恢复前使用SQLite backup API保护当前数据库并生成SHA-256，再以同目录临时文件原子替换。journal、WAL、SHM边车文件存在时拒绝恢复；替换后校验失败时自动尝试恢复执行前数据库。详细运维流程见`docs/backup_restore_guide.md`。
+
+阶段六新增15项专项测试，全仓库338项测试通过；`manage.py check`、迁移漂移检查和`git diff --check`通过。
