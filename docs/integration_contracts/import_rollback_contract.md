@@ -5,7 +5,7 @@
 | 项目 | 内容 |
 | --- | --- |
 | 契约状态 | 冻结；以2026-08-12第一版方案为准 |
-| 实现状态 | PR2已生成并冻结回滚JSON、SHA及SQLite备份；PR3恢复入口未实现 |
+| 实现状态 | PR3阶段一至五已实现回滚评估页面、二次确认及最近成功批次单事务恢复；灾难恢复命令未实现 |
 | 提供方 | 成员7，`imports`模块 |
 | 消费方 | 回滚页面、审计、集成测试和灾难恢复流程 |
 | 依据基线 | `develop@d2868b43e9126041226b58fbc2aef1d9e259a07f` |
@@ -47,6 +47,16 @@ JSON快照至少包含`schema_version`、`import_batch_id`、`created_at`、`rec
 5. 未检测到无法解释的后续业务修改。
 
 任一条件不满足时拒绝整批回滚，不提供强制覆盖或部分恢复。
+
+阶段一至三公共只读接口：
+
+```python
+get_rollback_candidate() -> ImportBatch | None
+assess_rollback(batch_id: int) -> RollbackAssessment
+verify_pre_import_database_backup(batch: ImportBatch) -> Path
+```
+
+`RollbackAssessment`包含`eligible`、结构化`conflicts`及回滚影响统计，不执行任何数据库或文件修改。冲突检测以PR2的preview作为导入后期望状态，以rollback snapshot作为导入前恢复状态，逐字段比较当前Student、ApplicationRecord、IdeologicalReportSummary和有效IdeologicalReport。
 
 ## 5. 恢复规则
 

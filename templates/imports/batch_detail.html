@@ -11,6 +11,7 @@
       {% if user.role == 'data_admin' %}
         <a class="btn btn-outline-primary" href="{% url 'imports:preview' batch.id %}">查看预览</a>
         <a class="btn btn-primary" href="{% url 'imports:download_file' batch.id %}">下载原文件</a>
+        {% if batch.status == 'success' %}<a class="btn btn-outline-danger" href="{% url 'imports:rollback' batch.id %}">评估回滚</a>{% endif %}
       {% endif %}
     </div>
   </div>

@@ -21,6 +21,13 @@ from apps.imports.forms import ExcelUploadForm
 from apps.imports.import_service import ConfirmImportConflict, ConfirmImportFailed, confirm_import
 from apps.imports.models import ImportBatch, ImportErrorRecord, ImportWarningRecord
 from apps.imports.parser import parse_workbook
+from apps.imports.rollback_service import (
+    RollbackBatchNotFound,
+    RollbackFailed,
+    RollbackRejected,
+    assess_rollback,
+    rollback_import,
+)
 from apps.imports.snapshots import build_preview_snapshot, load_preview_snapshot, write_preview_snapshot
 from apps.imports.storage import (
     ImportEvidenceIntegrityError,
@@ -109,6 +116,46 @@ def confirm(request: HttpRequest, batch_id: int) -> HttpResponse:
     except ConfirmImportFailed:
         logger.exception("Excel正式导入失败", extra={"batch_id": batch_id})
         return HttpResponse("正式导入失败，业务数据未发生部分写入。", status=500)
+    return redirect("imports:batch_detail", batch_id=batch.pk)
+
+
+@data_admin_required
+@require_http_methods(["GET", "POST"])
+def rollback(request: HttpRequest, batch_id: int) -> HttpResponse:
+    try:
+        assessment = assess_rollback(batch_id)
+    except RollbackBatchNotFound as exc:
+        raise Http404("导入批次不存在。") from exc
+    batch = get_object_or_404(ImportBatch, pk=batch_id)
+    if request.method == "GET":
+        return render(
+            request,
+            "imports/rollback_preview.html",
+            {"batch": batch, "assessment": assessment},
+        )
+    if request.POST.get("confirm_batch_id") != str(batch.pk):
+        return HttpResponse("回滚二次确认参数无效。", status=400)
+    if not assessment.eligible:
+        return render(
+            request,
+            "imports/rollback_preview.html",
+            {"batch": batch, "assessment": assessment},
+            status=409,
+        )
+    try:
+        rollback_import(request, batch.pk)
+    except TimeoutError:
+        return HttpResponse("已有导入或回滚任务正在执行，请稍后重试。", status=409)
+    except RollbackRejected as exc:
+        return render(
+            request,
+            "imports/rollback_preview.html",
+            {"batch": batch, "assessment": exc.assessment},
+            status=409,
+        )
+    except RollbackFailed:
+        logger.exception("Excel回滚失败", extra={"batch_id": batch_id})
+        return HttpResponse("回滚失败，业务数据未发生部分恢复。", status=500)
     return redirect("imports:batch_detail", batch_id=batch.pk)
 
 
