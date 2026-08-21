@@ -72,6 +72,10 @@ pre_import.sqlite3
 
 回滚快照schema version 1保存批次和preview绑定、记录数，以及每个候选学生导入前的Student、ApplicationRecord、IdeologicalReportSummary和全部有效IdeologicalReport可恢复字段。生产文件数据库使用SQLite backup API；Django内存测试数据库使用同一SQLite连接的`serialize()`一致性导出。备份写入后及业务事务内均执行`PRAGMA integrity_check`。
 
+PR3必须复用`apps.imports.snapshots.load_rollback_snapshot`和`validate_rollback_snapshot`。公共校验覆盖JSON/SHA、schema、批次和preview绑定、时间、记录数、重复学号、学生存在语义、材料结构、有效思想汇报及重复次数，禁止PR3复制第二套校验器。
+
+失败批次通过`ImportBatch.failure_message`保存预定义安全代码：`IMPORT_EVIDENCE_GENERATION_FAILED`、`IMPORT_DATABASE_BACKUP_FAILED`、`IMPORT_TRANSACTION_FAILED`或`IMPORT_AUDIT_FAILED`。字段不保存原始异常、路径、SQL或学生数据；详细堆栈仅进入受控服务端日志。
+
 字段覆盖严格采用冻结规则：学生姓名/支部/阶段更新，已有学生空职务保留，状态不变；空申请日期不创建也不清空；填报总篇数`None`不覆盖但0可覆盖，计算日期数始终更新；思想汇报有效集合删除后按真实次数完整重建。未在候选中的学生和解析错误行不受影响。
 
 ## 3. 批次目录与写入顺序
@@ -241,4 +245,4 @@ ImportEvidenceIntegrityError
 
 PR2测试覆盖匿名、viewer、未知角色、停用管理员、POST、CSRF、404、终态、重复请求、原文件及preview篡改、空候选、重复学号、非法支部、客户端伪造正文、字段空值覆盖、思想汇报替换、回滚JSON及SHA、导入前SQLite状态和完整性、统计、审计、审计失败事务回滚、备份失败、语义篡改候选、跨进程锁超时及释放后恢复。
 
-2026-08-21交叉自检后，当前候选通过32项确认导入专项测试和298项全仓库测试；`manage.py check`、迁移漂移检查及`git diff --check`均通过。失败场景测试中出现的异常日志为预期注入，用于证明审计或备份失败时业务事务完整回滚。
+2026-08-21 Review修复新增失败摘要迁移、正式回滚快照公共校验器、字段边界及真实并发测试。当前候选通过36项确认专项、2项真实并发专项和303项全仓库测试；`check`、迁移漂移及`git diff --check`通过。全量测试约372秒，CI需保留充足超时。失败场景异常日志为预期注入，用于证明审计或备份失败时业务事务完整回滚。

@@ -8,7 +8,7 @@
 | 集成分支 | `develop` |
 | 核验 SHA | `c113c1e18a3c018afc7f584d3eba4506acd74dbb`（PR2候选基线） |
 | 最新合并 | PR #19，Excel上传、服务端预览、历史与受控下载 |
-| 本地验证 | `check`通过；无迁移变化；298项测试通过；`git diff --check`通过 |
+| 本地验证 | `check`通过；无迁移变化；303项测试通过；真实并发专项通过；`git diff --check`通过 |
 | 业务规范 | `docs/spec.md` |
 | 当前作业方案 | `docs/sprint/mvp_convergence_governance_plan.md` |
 

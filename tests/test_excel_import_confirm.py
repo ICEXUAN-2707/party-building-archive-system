@@ -12,12 +12,15 @@ from django.urls import reverse
 from apps.imports.datatypes import ParseResult, SheetResult
 from apps.imports.models import ImportBatch, ImportStatus
 from apps.imports.import_service import (
+    FAILURE_AUDIT,
+    FAILURE_BACKUP,
     PRE_IMPORT_DATABASE_FILENAME,
     ROLLBACK_FILENAME,
     ROLLBACK_HASH_FILENAME,
     _confirmation_lock,
 )
 from apps.imports.snapshots import PREVIEW_FILENAME, PREVIEW_HASH_FILENAME
+from apps.imports.snapshots import load_rollback_snapshot
 from apps.imports.storage import artifact_path
 from apps.audit.models import OperationLog
 from apps.materials.models import ApplicationRecord, IdeologicalReport, IdeologicalReportSummary
@@ -321,6 +324,12 @@ class ConfirmImportTransactionTests(ConfirmImportGuardTests):
 
         self.assertEqual(response.status_code, 500)
         self.assertEqual(batch.status, ImportStatus.FAILED)
+        self.assertEqual(batch.failure_message, FAILURE_AUDIT)
+        self.assertIsNone(batch.imported_at)
+        self.assertEqual(batch.created_students, 0)
+        self.assertEqual(batch.updated_students, 0)
+        self.assertEqual(batch.created_reports, 0)
+        self.assertEqual(batch.updated_applications, 0)
         self.assertEqual(self._business_counts(), before)
         self.assertFalse(OperationLog.objects.filter(action="confirm_import").exists())
 
@@ -336,6 +345,7 @@ class ConfirmImportTransactionTests(ConfirmImportGuardTests):
 
         self.assertEqual(response.status_code, 500)
         self.assertEqual(batch.status, ImportStatus.FAILED)
+        self.assertEqual(batch.failure_message, FAILURE_BACKUP)
         self.assertEqual(self._business_counts(), before)
         self.assertTrue(artifact_path(batch.pk, ROLLBACK_FILENAME).exists())
         self.assertFalse(artifact_path(batch.pk, PRE_IMPORT_DATABASE_FILENAME).exists())
@@ -393,3 +403,50 @@ class ConfirmImportTransactionTests(ConfirmImportGuardTests):
         profile = self.client.get(reverse("students:student_profile"))
         self.assertContains(profile, "张三")
         self.assertContains(profile, "第1次思想汇报")
+
+    def test_zero_reported_total_overwrites_and_empty_reports_clear_old_set(self) -> None:
+        student = Student.objects.create(
+            name="旧姓名",
+            student_number="20260001",
+            branch=self.branch,
+            development_stage="ACTIVIST",
+        )
+        summary = IdeologicalReportSummary.objects.create(
+            student=student, reported_total_count=8, calculated_date_count=1
+        )
+        IdeologicalReport.objects.create(
+            student=student,
+            sequence_number=1,
+            submitted_at=date(2020, 1, 1),
+            source_column_name="第一次思想汇报",
+        )
+        result = self._result(include_warning=False)
+        row = result.valid_rows[0]
+        row.reported_total_count = 0
+        row.calculated_date_count = 0
+        row.report_items = []
+        batch = self._create_batch(result)
+
+        self.assertEqual(self.client.post(self._confirm_url(batch)).status_code, 302)
+        summary.refresh_from_db()
+        self.assertEqual(summary.reported_total_count, 0)
+        self.assertEqual(summary.calculated_date_count, 0)
+        self.assertFalse(student.ideological_reports.filter(is_active=True).exists())
+
+    def test_new_student_with_empty_application_date_does_not_create_application(self) -> None:
+        result = self._result(include_warning=False)
+        result.valid_rows[0].applied_at = None
+        batch = self._create_batch(result)
+        self.assertEqual(self.client.post(self._confirm_url(batch)).status_code, 302)
+        self.assertFalse(ApplicationRecord.objects.exists())
+
+    def test_rollback_public_loader_rejects_tampering(self) -> None:
+        batch = self._create_batch()
+        self.assertEqual(self.client.post(self._confirm_url(batch)).status_code, 302)
+        self.assertEqual(load_rollback_snapshot(batch)["import_batch_id"], batch.pk)
+        path = artifact_path(batch.pk, ROLLBACK_FILENAME)
+        path.write_bytes(path.read_bytes() + b" ")
+        from apps.imports.storage import ImportEvidenceIntegrityError
+
+        with self.assertRaises(ImportEvidenceIntegrityError):
+            load_rollback_snapshot(batch)

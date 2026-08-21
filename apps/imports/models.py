@@ -24,6 +24,7 @@ class ImportBatch(models.Model):
     )
     imported_at = models.DateTimeField("导入时间", null=True, blank=True)
     status = models.CharField("批次状态", max_length=32, choices=ImportStatus.choices, default=ImportStatus.PREVIEWED)
+    failure_message = models.CharField("失败安全摘要", max_length=64, blank=True)
     total_sheets = models.PositiveIntegerField("工作表总数", default=0)
     success_sheets = models.PositiveIntegerField("成功工作表数", default=0)
     failed_sheets = models.PositiveIntegerField("失败工作表数", default=0)

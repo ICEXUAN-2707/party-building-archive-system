@@ -20,7 +20,14 @@ from django.utils.dateparse import parse_date
 
 from apps.audit.services import record_operation_log
 from apps.imports.models import ImportBatch, ImportStatus
-from apps.imports.snapshots import PREVIEW_HASH_FILENAME, load_preview_snapshot
+from apps.imports.snapshots import (
+    PREVIEW_HASH_FILENAME,
+    ROLLBACK_FILENAME,
+    ROLLBACK_HASH_FILENAME,
+    ROLLBACK_SCHEMA_VERSION,
+    load_preview_snapshot,
+    load_rollback_snapshot,
+)
 from apps.imports.storage import (
     ImportEvidenceIntegrityError,
     ImportEvidenceNotFound,
@@ -30,11 +37,12 @@ from apps.materials.models import ApplicationRecord, IdeologicalReport, Ideologi
 from apps.students.models import DevelopmentStage, PartyBranch, Student
 
 
-ROLLBACK_SCHEMA_VERSION = 1
-ROLLBACK_FILENAME = "rollback_snapshot.json"
-ROLLBACK_HASH_FILENAME = "rollback_snapshot.sha256"
 PRE_IMPORT_DATABASE_FILENAME = "pre_import.sqlite3"
 CONFIRM_LOCK_TIMEOUT_SECONDS = 5.0
+FAILURE_EVIDENCE = "IMPORT_EVIDENCE_GENERATION_FAILED"
+FAILURE_BACKUP = "IMPORT_DATABASE_BACKUP_FAILED"
+FAILURE_TRANSACTION = "IMPORT_TRANSACTION_FAILED"
+FAILURE_AUDIT = "IMPORT_AUDIT_FAILED"
 logger = logging.getLogger(__name__)
 
 
@@ -48,6 +56,7 @@ class ConfirmImportFailed(Exception):
 
 def confirm_import(request: HttpRequest, batch_id: int) -> ImportBatch:
     """在单一串行窗口内生成证据并原子写入全部有效候选。"""
+    failure_code = FAILURE_EVIDENCE
     try:
         with _confirmation_lock():
             batch = _load_previewed_batch(batch_id)
@@ -64,8 +73,10 @@ def confirm_import(request: HttpRequest, batch_id: int) -> ImportBatch:
                 filename=ROLLBACK_FILENAME,
                 hash_filename=ROLLBACK_HASH_FILENAME,
             )
+            failure_code = FAILURE_BACKUP
             _create_consistent_database_backup(batch)
 
+            failure_code = FAILURE_TRANSACTION
             try:
                 with transaction.atomic():
                     locked_batch = ImportBatch.objects.select_for_update().get(pk=batch.pk)
@@ -79,11 +90,11 @@ def confirm_import(request: HttpRequest, batch_id: int) -> ImportBatch:
                     _validate_confirmable_candidates(verified_snapshot)
                     if verified_snapshot != snapshot:
                         raise ConfirmImportConflict("确认窗口内预览证据发生变化。")
-                    if _load_json_evidence(
-                        locked_batch,
-                        filename=ROLLBACK_FILENAME,
-                        hash_filename=ROLLBACK_HASH_FILENAME,
-                    ) != rollback_snapshot:
+                    try:
+                        verified_rollback = load_rollback_snapshot(locked_batch)
+                    except (ImportEvidenceNotFound, ImportEvidenceIntegrityError) as exc:
+                        raise ConfirmImportConflict(str(exc)) from exc
+                    if verified_rollback != rollback_snapshot:
                         raise ConfirmImportConflict("确认窗口内回滚快照证据发生变化。")
                     _verify_sqlite_backup(
                         artifact_path(locked_batch.pk, PRE_IMPORT_DATABASE_FILENAME)
@@ -94,6 +105,7 @@ def confirm_import(request: HttpRequest, batch_id: int) -> ImportBatch:
                     locked_batch.imported_at = timezone.now()
                     locked_batch.imported_by = request.user
                     locked_batch.save()
+                    failure_code = FAILURE_AUDIT
                     record_operation_log(
                         request,
                         action="confirm_import",
@@ -105,7 +117,7 @@ def confirm_import(request: HttpRequest, batch_id: int) -> ImportBatch:
             except ConfirmImportConflict:
                 raise
             except Exception as exc:
-                _mark_batch_failed(batch.pk)
+                _mark_batch_failed(batch.pk, failure_code)
                 raise ConfirmImportFailed("正式导入失败，业务数据已完整回滚。") from exc
     except TimeoutError as exc:
         raise ConfirmImportConflict("已有导入任务正在执行，请稍后重试。") from exc
@@ -114,7 +126,7 @@ def confirm_import(request: HttpRequest, batch_id: int) -> ImportBatch:
     except ConfirmImportFailed:
         raise
     except Exception as exc:
-        _mark_batch_failed(batch_id)
+        _mark_batch_failed(batch_id, failure_code)
         raise ConfirmImportFailed("导入保护证据生成失败，未写入业务数据。") from exc
 
 
@@ -297,33 +309,6 @@ def _write_json_evidence(
     return digest
 
 
-def _load_json_evidence(
-    batch: ImportBatch, *, filename: str, hash_filename: str
-) -> dict[str, Any]:
-    document_path = artifact_path(batch.pk, filename)
-    digest_path = artifact_path(batch.pk, hash_filename)
-    if not document_path.is_file() or not digest_path.is_file():
-        raise ConfirmImportConflict("回滚快照证据不存在。")
-    payload = document_path.read_bytes()
-    expected = digest_path.read_text(encoding="ascii").strip()
-    if len(expected) != 64 or hashlib.sha256(payload).hexdigest() != expected:
-        raise ConfirmImportConflict("回滚快照完整性校验失败。")
-    try:
-        document = json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ConfirmImportConflict("回滚快照不是有效JSON。") from exc
-    if not isinstance(document, dict):
-        raise ConfirmImportConflict("回滚快照结构无效。")
-    if document.get("schema_version") != ROLLBACK_SCHEMA_VERSION:
-        raise ConfirmImportConflict("回滚快照schema版本无效。")
-    if document.get("import_batch_id") != batch.pk:
-        raise ConfirmImportConflict("回滚快照与批次不匹配。")
-    students = document.get("students")
-    if not isinstance(students, list) or document.get("record_count") != len(students):
-        raise ConfirmImportConflict("回滚快照记录数无效。")
-    return document
-
-
 def _create_consistent_database_backup(batch: ImportBatch) -> Path:
     destination = artifact_path(batch.pk, PRE_IMPORT_DATABASE_FILENAME)
     temporary = artifact_path(
@@ -434,13 +419,18 @@ def _apply_candidates(batch: ImportBatch, rows: list[dict[str, Any]]) -> None:
     batch.updated_applications = updated_applications
 
 
-def _mark_batch_failed(batch_id: int) -> None:
+def _mark_batch_failed(batch_id: int, failure_message: str) -> bool:
     try:
-        ImportBatch.objects.filter(pk=batch_id, status=ImportStatus.PREVIEWED).update(
-            status=ImportStatus.FAILED
+        updated = ImportBatch.objects.filter(
+            pk=batch_id, status=ImportStatus.PREVIEWED
+        ).update(
+            status=ImportStatus.FAILED,
+            failure_message=failure_message,
         )
+        return updated == 1
     except Exception:
         logger.exception("无法保存导入失败状态", extra={"batch_id": batch_id})
+        return False
 
 
 @contextmanager

@@ -96,7 +96,7 @@ apps.imports.parser.parse_workbook(file_path: Path) -> ParseResult
 4. `ImportBatch.id`是确认幂等标识；重复请求不得重复创建或更新业务数据。
 5. 所有学生和材料写入必须位于单一`transaction.atomic()`中，禁止部分成功。
 6. 业务事务成功后批次转为`success`，设置`imported_at`、`imported_by`和各写入统计。
-7. 业务事务失败时全部业务写入回滚；随后在独立可提交步骤将批次标为`failed`。失败批次不可重试，需重新上传创建新批次。
+7. 业务事务失败时全部业务写入回滚；随后在独立可提交步骤将批次标为`failed`并写入预定义的`failure_message`安全代码。失败批次不可重试，需重新上传创建新批次。安全代码不得包含异常堆栈、服务器路径、SQL或学生数据。
 8. 成功确认记录`confirm_import`；失败确认不记录成功事件，可在批次状态和页面反馈中说明失败。
 
 ## 7. 状态机
