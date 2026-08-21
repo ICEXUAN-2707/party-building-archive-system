@@ -349,6 +349,22 @@ def _verify_sqlite_backup(path: Path) -> None:
         raise RuntimeError("SQLite备份完整性检查失败。")
 
 
+def verify_pre_import_database_backup(batch: ImportBatch) -> Path:
+    """供PR3复用：校验备份完整性及其与previewed批次的绑定。"""
+    path = artifact_path(batch.pk, PRE_IMPORT_DATABASE_FILENAME)
+    _verify_sqlite_backup(path)
+    database = sqlite3.connect(path)
+    try:
+        row = database.execute(
+            "SELECT status, file_hash FROM imports_importbatch WHERE id = ?", (batch.pk,)
+        ).fetchone()
+    finally:
+        database.close()
+    if row != (ImportStatus.PREVIEWED, batch.file_hash):
+        raise RuntimeError("SQLite备份与导入批次不匹配。")
+    return path
+
+
 def _apply_candidates(batch: ImportBatch, rows: list[dict[str, Any]]) -> None:
     branches = {
         branch.code: branch
