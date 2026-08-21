@@ -26,7 +26,7 @@ python scripts/run_excel_acceptance.py `
 
 执行器使用独立SQLite及媒体目录，完成迁移、九支部初始化、负向上传、第一次上传预览和确认、管理员与学生查询、第二次导入、最近批次回滚、审计和证据核对，并启动新的Python进程复查持久性。
 
-成功后生成`acceptance_report.json`，记录Git SHA、随机种子、输入规模、批次、警告、负向场景、审计、证据SHA-256、耗时和重启复查结果。生成目录已被Git忽略，不得提交Excel、SQLite或媒体证据。
+成功后生成`acceptance_report.json`，记录Git SHA、随机种子、输入规模、每批有效/跳过/新建/更新统计、回滚后数据库数量、负向场景、审计、证据SHA-256、耗时和重启复查结果。生成目录已被Git忽略，不得提交Excel、SQLite或媒体证据。
 
 ## 报告有效性
 

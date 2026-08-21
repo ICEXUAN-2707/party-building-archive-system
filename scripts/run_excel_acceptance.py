@@ -182,6 +182,16 @@ def run_acceptance(output_directory: Path, *, student_count: int, seed: int) -> 
         "second_batch_id": second_batch.pk,
         "first_batch_status": first_batch.status,
         "second_batch_status": second_batch.status,
+        "batch_statistics": {
+            "first": _batch_statistics(first_batch),
+            "second": _batch_statistics(second_batch),
+        },
+        "database_counts_after_rollback": {
+            "students": Student.objects.count(),
+            "applications": ApplicationRecord.objects.count(),
+            "report_summaries": IdeologicalReportSummary.objects.count(),
+            "active_reports": IdeologicalReport.objects.filter(is_active=True).count(),
+        },
         "warning_rows_per_main_batch": dataset.warning_rows,
         "negative_results": negative_results,
         "audit_counts": audit_counts,
@@ -294,6 +304,29 @@ def _assert_batch_preview(batch, dataset: AcceptanceDataset) -> None:
     _require(batch.success_rows == dataset.student_count, "主批次有效行数不匹配。")
     _require(batch.skipped_rows == 0, "主批次不应存在跳过行。")
     _require(batch.warning_rows == dataset.warning_rows, "主批次警告行数不匹配。")
+
+
+def _batch_statistics(batch) -> dict[str, int]:
+    return {
+        field: getattr(batch, field)
+        for field in (
+            "total_sheets",
+            "success_sheets",
+            "failed_sheets",
+            "total_rows",
+            "success_rows",
+            "skipped_rows",
+            "warning_rows",
+            "created_students",
+            "updated_students",
+            "created_reports",
+            "updated_applications",
+            "count_mismatch_rows",
+            "unknown_branch_rows",
+            "invalid_stage_rows",
+            "column_shift_rows",
+        )
+    }
 
 
 def _exercise_query_paths(admin_client, sample, *, reverse, Client) -> None:
