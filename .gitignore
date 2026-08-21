@@ -215,6 +215,7 @@ media/imports/*
 !media/imports/.gitkeep
 backups/
 disaster_restore_backups/
+artifacts/acceptance/
 *.sqlite3
 *.xlsx
 *.xls
