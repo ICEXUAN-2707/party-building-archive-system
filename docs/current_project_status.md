@@ -4,11 +4,11 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 核验日期 | 2026-08-12 |
+| 核验日期 | 2026-08-21 |
 | 集成分支 | `develop` |
-| 核验 SHA | `d2868b43e9126041226b58fbc2aef1d9e259a07f` |
-| 最新合并 | PR #3，管理员登录、权限、查询与审计闭环 |
-| 本地验证 | `check`通过；无迁移变化；230项测试通过 |
+| 核验 SHA | `c113c1e18a3c018afc7f584d3eba4506acd74dbb`（PR2候选基线） |
+| 最新合并 | PR #19，Excel上传、服务端预览、历史与受控下载 |
+| 本地验证 | `check`通过；无迁移变化；298项测试通过；`git diff --check`通过 |
 | 业务规范 | `docs/spec.md` |
 | 当前作业方案 | `docs/sprint/mvp_convergence_governance_plan.md` |
 
@@ -23,9 +23,9 @@
 | 学生个人档案 | 已合入且稳定 | `students:student_profile` |
 | Excel纯解析 | 已合入且稳定 | `apps.imports.parser.parse_workbook` |
 | 管理员认证、查询、权限、审计 | 已合入且稳定 | PR #3；管理员专项59项通过 |
-| Excel上传、服务端预览、历史、下载 | PR1实现候选 | 等待开发者B确认公共接口、Review和CI |
-| Excel正式导入 | 待开发 | 计划拆分PR 2 |
-| 最近成功批次回滚与备份 | 方案冻结、待开发 | 计划拆分PR 3 |
+| Excel上传、服务端预览、历史、下载 | 已合入 | PR #19；`develop@c113c1e` |
+| Excel正式导入 | PR2实现候选 | 权限、证据、快照、备份、原子写入、审计已实现，等待Review和CI |
+| 最近成功批次回滚与备份 | 部分完成 | PR2已生成回滚证据；PR3恢复入口待开发 |
 | Docker与生产部署 | 未开始 | 业务闭环后推进 |
 
 ## 契约实现矩阵
@@ -37,8 +37,8 @@
 | `excel_parser_contract.md` | 冻结 | 已实现 |
 | `admin_permission_contract.md` | 冻结 | 已实现 |
 | `admin_query_contract.md` | 冻结 | 已实现 |
-| `excel_import_contract.md` | 现行决策已冻结并完成规则校准 | PR1实现候选；PR2未实现 |
-| `import_rollback_contract.md` | 现行决策已冻结，待按最新方案校准实现 | 未实现 |
+| `excel_import_contract.md` | 现行决策已冻结并完成规则校准 | PR1已合入；PR2实现候选 |
+| `import_rollback_contract.md` | 现行决策已冻结 | PR2证据生成已实现；PR3恢复未实现 |
 
 ## 已确认决策
 
@@ -55,4 +55,4 @@
 
 ## 当前边界
 
-管理员模块已经合入；Excel PR1已从文档治理后的`develop@b4d8779`形成实现候选。下一步是开发者B确认preview schema和公共安全读取接口，并完成Review、全量测试及CI；PR1合入前不得提前实现PR2或PR3。
+管理员模块和Excel PR1已经合入；PR2从最新`develop@c113c1e`完成正式事务导入候选。下一步是完成交叉Review、全量测试和CI并合入develop；PR2合入前不得从候选分支并行开发PR3。

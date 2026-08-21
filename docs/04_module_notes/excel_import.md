@@ -1,12 +1,12 @@
-# Excel上传与服务端预览模块（PR1）
+# Excel上传、服务端预览与正式事务导入（PR1 / PR2）
 
-负责人：开发者A（成员7）
+负责人：开发者A（PR1）/ 开发者B（PR2）
 
-Branch：`feature/excel-import`
+Branch：`feature/excel-import-confirm-guard`
 
-开发基线：`develop@b4d8779604b503cc0508842e7603b7030e1c45c1`
+开发基线：`develop@c113c1e18a3c018afc7f584d3eba4506acd74dbb`
 
-状态：PR1实现候选，等待开发者B确认公共接口、Review和CI
+状态：PR1已合入`develop@c113c1e`；PR2正式事务导入实现候选
 
 ---
 
@@ -23,7 +23,7 @@ Branch：`feature/excel-import`
 - 上传成功审计；
 - 预览阶段四类业务表零写入。
 
-本PR不实现`confirm_import`、正式业务表写入、`rollback_snapshot.json`、SQLite备份或回滚入口，不修改模型、迁移、解析器和权限模块。
+PR1不实现`confirm_import`。PR2新增确认URL、串行化保护、回滚快照、SQLite一致性备份、正式业务表写入和成功审计；仍不实现PR3回滚页面或恢复命令，不修改模型、迁移、解析器和权限模块。
 
 ## 2. URL与权限
 
@@ -31,11 +31,48 @@ Branch：`feature/excel-import`
 | --- | --- | --- | --- |
 | `imports:upload` | `/imports/upload/` | GET/POST | data_admin |
 | `imports:preview` | `/imports/<batch_id>/preview/` | GET | data_admin |
+| `imports:confirm` | `/imports/<batch_id>/confirm/` | POST | data_admin |
 | `imports:history` | `/imports/history/` | GET | viewer_admin/data_admin |
 | `imports:batch_detail` | `/imports/history/<batch_id>/` | GET | viewer_admin/data_admin |
 | `imports:download_file` | `/imports/<batch_id>/file/` | GET | data_admin |
 
 未登录请求由统一权限工具跳转`accounts:admin_login`，角色不符返回403。不存在批次或证据返回404；证据存在但哈希/schema/绑定校验失败返回409且不展示或下载内容。
+
+停用管理员由Django认证后端在进入权限装饰器前视为未认证，因此实际跳转管理员登录页；未知活动角色由统一权限工具返回403。
+
+### 2.1 PR2确认语义
+
+确认入口按以下顺序执行且不信任POST正文：
+
+```text
+统一data_admin权限与POST/CSRF检查
+→ 按主键查询批次，不存在返回404
+→ 状态必须严格为previewed，否则返回409
+→ load_preview_snapshot重新校验原文件、preview及全部绑定
+→ 证据缺失、篡改、schema冲突返回409
+→ 空候选或重复学号返回409
+→ 获取跨进程文件锁并重新读取批次
+→ 生成rollback_snapshot.json及SHA
+→ 生成pre_import.sqlite3并执行integrity_check
+→ 事务内再次校验全部证据
+→ 原子写入候选、批次success状态和confirm_import审计
+```
+
+确认成功后跳转批次详情。`success`、`failed`和`rolled_back`批次的任意重复请求均在读取证据前返回409。证据或候选冲突保持`previewed`并返回409；保护文件生成或业务事务异常返回500，业务表完整回滚后独立将批次标记为`failed`。
+
+串行化锁位于`MEDIA_ROOT/imports/.confirm_import.lock`，使用Windows `msvcrt.locking`或Unix `fcntl.flock`的操作系统级非阻塞文件锁，覆盖不同批次和同批次的整个“快照→备份→写入”窗口。进程异常退出时操作系统自动释放锁，不依赖删除锁文件恢复；第一版仍限定单机SQLite部署。
+
+回滚证据目录新增：
+
+```text
+rollback_snapshot.json
+rollback_snapshot.sha256
+pre_import.sqlite3
+```
+
+回滚快照schema version 1保存批次和preview绑定、记录数，以及每个候选学生导入前的Student、ApplicationRecord、IdeologicalReportSummary和全部有效IdeologicalReport可恢复字段。生产文件数据库使用SQLite backup API；Django内存测试数据库使用同一SQLite连接的`serialize()`一致性导出。备份写入后及业务事务内均执行`PRAGMA integrity_check`。
+
+字段覆盖严格采用冻结规则：学生姓名/支部/阶段更新，已有学生空职务保留，状态不变；空申请日期不创建也不清空；填报总篇数`None`不覆盖但0可覆盖，计算日期数始终更新；思想汇报有效集合删除后按真实次数完整重建。未在候选中的学生和解析错误行不受影响。
 
 ## 3. 批次目录与写入顺序
 
@@ -196,8 +233,12 @@ ImportEvidenceIntegrityError
 
 ## 8. 测试
 
-测试文件：`tests/test_excel_import_preview.py`
+测试文件：`tests/test_excel_import_preview.py`、`tests/test_excel_import_confirm.py`
 
 当前31项PR1测试覆盖权限、方法、CSRF、扩展名、空文件、10 MiB边界、随机名、路径净化、SHA、schema、统计一致性、日期、错误警告映射、真实解析器、空预览、重复学号、原文件/preview篡改、历史详情下载、成功审计、失败清理和四类业务表零写入。2026-08-19在当前工作树执行全量测试共265项，全部通过；空临时SQLite迁移、`check`、迁移漂移检查、`git diff --check`和Repository policy均通过。
 
 正式候选SHA提交后仍需在该SHA重跑门禁和三项CI，并由开发者B确认本文件第4、5节接口可消费。
+
+PR2测试覆盖匿名、viewer、未知角色、停用管理员、POST、CSRF、404、终态、重复请求、原文件及preview篡改、空候选、重复学号、非法支部、客户端伪造正文、字段空值覆盖、思想汇报替换、回滚JSON及SHA、导入前SQLite状态和完整性、统计、审计、审计失败事务回滚、备份失败、语义篡改候选、跨进程锁超时及释放后恢复。
+
+2026-08-21交叉自检后，当前候选通过32项确认导入专项测试和298项全仓库测试；`manage.py check`、迁移漂移检查及`git diff --check`均通过。失败场景测试中出现的异常日志为预期注入，用于证明审计或备份失败时业务事务完整回滚。
