@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import random
+import re
 import zipfile
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
@@ -197,7 +198,16 @@ def _normalize_xlsx_archive(path: Path) -> None:
     """固定ZIP元数据，使相同种子在Windows/Linux生成字节一致的XLSX。"""
     temporary = path.with_name(f".{path.name}.normalized.tmp")
     with zipfile.ZipFile(path, "r") as source:
-        entries = [(name, source.read(name)) for name in sorted(source.namelist())]
+        entries = []
+        for name in sorted(source.namelist()):
+            payload = source.read(name)
+            if name == "docProps/core.xml":
+                payload = re.sub(
+                    br"<dcterms:modified[^>]*>.*?</dcterms:modified>",
+                    b'<dcterms:modified xsi:type="dcterms:W3CDTF">2026-08-22T00:00:00Z</dcterms:modified>',
+                    payload,
+                )
+            entries.append((name, payload))
     try:
         with zipfile.ZipFile(
             temporary,
