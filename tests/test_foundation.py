@@ -18,6 +18,25 @@ class FoundationPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "学院学生材料信息查询系统")
 
+    def test_home_page_only_exposes_two_login_actions(self) -> None:
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(response, f'href="{reverse("accounts:student_login")}"')
+        self.assertContains(response, f'href="{reverse("accounts:admin_login")}"')
+        self.assertNotContains(response, "功能入口")
+        self.assertNotContains(response, "学生个人信息占位页")
+        self.assertNotContains(response, "Excel上传与预览")
+        self.assertNotContains(response, "导入历史")
+
+    def test_home_and_navigation_include_responsive_contract(self) -> None:
+        response = self.client.get(reverse("home"))
+
+        self.assertContains(response, 'name="viewport"')
+        self.assertContains(response, "d-grid gap-3 d-sm-flex")
+        self.assertContains(response, 'class="navbar-toggler"')
+        self.assertContains(response, 'data-bs-target="#mainNav"')
+        self.assertContains(response, 'aria-controls="mainNav"')
+
     def test_placeholder_urls_resolve(self) -> None:
         url_names = [
             "accounts:student_login",
