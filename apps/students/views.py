@@ -212,24 +212,23 @@ def student_profile(request: HttpRequest) -> HttpResponse:
         update_candidates.append(report_summary.updated_at)
     profile_updated_at = max(value for value in update_candidates if value is not None)
 
-    # 总篇数：优先 Excel 填报值（含0）；为 None 时回退系统计算值并标记来源
-    if report_summary is not None and report_summary.reported_total_count is not None:
-        report_count = report_summary.reported_total_count
-        is_count_from_system = False
-    elif report_summary is not None:
-        report_count = report_summary.calculated_date_count
-        is_count_from_system = True
-    else:
-        # 无汇总记录时回退有效明细数量，标记为系统计算来源
-        report_count = len(idea_reports)
-        is_count_from_system = True
+    # 学生页主数字必须与下方当前有效明细严格一致。Excel 填报值仅作为
+    # 原始数据保留；不一致时单独提示，避免出现“总数4、明细3”的误导。
+    report_count = len(idea_reports)
+    reported_total_count = (
+        report_summary.reported_total_count if report_summary is not None else None
+    )
+    report_count_mismatch = (
+        reported_total_count is not None and reported_total_count != report_count
+    )
 
     context = {
         "student": student,
         "application_record": application_record,
         "idea_reports": idea_reports,
         "report_count": report_count,
+        "reported_total_count": reported_total_count,
+        "report_count_mismatch": report_count_mismatch,
         "profile_updated_at": profile_updated_at,
-        "is_count_from_system": is_count_from_system,
     }
     return render(request, "students/student_profile.html", context)

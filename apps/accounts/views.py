@@ -35,7 +35,8 @@ class AdminLoginView(LoginView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        """登录成功后写入审计日志。"""
+        """登录成功后切换为唯一的管理员身份并写入审计日志。"""
+        self.request.session.pop(SESSION_STUDENT_ID_KEY, None)
         response = super().form_valid(form)
         user = self.request.user
         # 写入登录审计日志
@@ -86,8 +87,8 @@ def student_login(request: HttpRequest) -> HttpResponse:
                 .first()
             )
             if student is not None:
-                # 轮换会话键防止 Session fixation，同时保留管理员认证数据。
-                request.session.cycle_key()
+                # 学生端与管理员端身份互斥，避免旧管理员会话泄露后台权限。
+                auth_logout(request)
                 request.session[SESSION_STUDENT_ID_KEY] = student.id
                 return redirect("students:student_profile")
             form.add_error(None, LOGIN_ERROR_MESSAGE)

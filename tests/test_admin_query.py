@@ -140,6 +140,23 @@ class AdminLoginTests(AdminQueryTestCase):
             OperationLog.objects.filter(action="admin_login", operator=self.viewer).exists()
         )
 
+    def test_login_success_clears_student_identity(self) -> None:
+        session = self.client.session
+        session["student_id"] = self.student1.pk
+        session.save()
+
+        response = self.client.post(
+            reverse("accounts:admin_login"),
+            {"username": "data01", "password": "testpass123"},
+        )
+
+        self.assertRedirects(response, reverse("students:admin_student_list"))
+        self.assertNotIn("student_id", self.client.session)
+        upload_response = self.client.get(reverse("imports:upload"))
+        self.assertEqual(upload_response.status_code, 200)
+        self.assertContains(upload_response, "Excel")
+        self.assertNotContains(upload_response, "退出学生登录")
+
     def test_login_failure_shows_error(self) -> None:
         """密码错误返回登录页并含错误提示。"""
         response = self.client.post(

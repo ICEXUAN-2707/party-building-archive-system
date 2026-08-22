@@ -78,10 +78,10 @@ class StudentProfileTestCase(TestCase):
         self.assertIsNone(res2.context["application_record"])
         self.assertContains(res2, "暂无入党申请记录")
 
-    # 用例5：reported_total_count 为正数、0 和 None
-    def test_reported_total_count_positive_zero_none(self):
-        cases = [(5, 5, False), (0, 0, False), (None, 5, True)]
-        for total, expected_count, expect_system in cases:
+    # 用例5：学生页主数字始终与当前有效明细数量一致
+    def test_report_count_uses_active_details_regardless_of_summary_values(self):
+        cases = [(5, True), (0, False), (None, False)]
+        for total, expect_mismatch in cases:
             with self.subTest(total=total):
                 student = Student.objects.create(
                     name=f"汇总学生{total}",
@@ -97,11 +97,11 @@ class StudentProfileTestCase(TestCase):
                 self._login(student)
                 res = self.client.get(self.profile_url)
                 self.assertEqual(res.status_code, 200)
-                self.assertEqual(res.context["report_count"], expected_count)
-                self.assertEqual(res.context["is_count_from_system"], expect_system)
+                self.assertEqual(res.context["report_count"], 0)
+                self.assertEqual(res.context["report_count_mismatch"], expect_mismatch)
 
-    # 用例6：None 时展示计算值和正确来源说明
-    def test_none_total_count_shows_calculated_and_source_label(self):
+    # 用例6：没有有效明细时不使用汇总表中的旧计算值
+    def test_none_total_count_does_not_replace_active_detail_count(self):
         IdeologicalReportSummary.objects.create(
             student=self.student_a,
             reported_total_count=None,
@@ -109,10 +109,31 @@ class StudentProfileTestCase(TestCase):
         )
         self._login(self.student_a)
         res = self.client.get(self.profile_url)
-        self.assertEqual(res.context["report_count"], 5)
-        self.assertTrue(res.context["is_count_from_system"])
-        self.assertContains(res, "思想汇报总篇数：5篇")
-        self.assertContains(res, "根据当前已记录提交时间统计")
+        self.assertEqual(res.context["report_count"], 0)
+        self.assertContains(res, "当前有效思想汇报：0篇")
+
+    def test_reported_four_with_three_details_shows_three_and_mismatch_warning(self):
+        IdeologicalReportSummary.objects.create(
+            student=self.student_a,
+            reported_total_count=4,
+            calculated_date_count=3,
+        )
+        for sequence in (1, 2, 3):
+            IdeologicalReport.objects.create(
+                student=self.student_a,
+                sequence_number=sequence,
+                submitted_at=date(2025, sequence, 1),
+                source_column_name=f"第{sequence}次思想汇报",
+                is_active=True,
+            )
+
+        self._login(self.student_a)
+        res = self.client.get(self.profile_url)
+
+        self.assertEqual(res.context["report_count"], 3)
+        self.assertContains(res, "当前有效思想汇报：3篇")
+        self.assertContains(res, "Excel填报总篇数为4篇")
+        self.assertContains(res, "当前有效明细3篇不一致")
 
     # 用例7：只显示 is_active=True 的明细
     def test_only_active_reports_displayed(self):
@@ -202,7 +223,7 @@ class StudentProfileTestCase(TestCase):
         res = self.client.get(self.profile_url)
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.context["report_count"], 0)
-        self.assertTrue(res.context["is_count_from_system"])
+        self.assertFalse(res.context["report_count_mismatch"])
         self.assertEqual(list(res.context["idea_reports"]), [])
         self.assertContains(res, "暂无有效思想汇报")
         self.assertContains(res, "暂无入党申请记录")

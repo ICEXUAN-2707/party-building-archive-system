@@ -81,7 +81,7 @@ class StudentLoginViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(self.client.session["student_id"], self.inactive_student.pk)
 
-    def test_login_cycles_session_key_and_preserves_admin_auth(self) -> None:
+    def test_login_cycles_session_key_and_clears_admin_auth(self) -> None:
         admin = get_user_model().objects.create_user(
             username="admin_auth_test",
             password="pass123",
@@ -98,7 +98,24 @@ class StudentLoginViewTests(TestCase):
         session_after = self.client.session
         self.assertNotEqual(session_after.session_key, old_key)
         self.assertEqual(session_after["student_id"], self.active_student.pk)
-        self.assertEqual(session_after["_auth_user_id"], str(admin.pk))
+        self.assertNotIn("_auth_user_id", session_after)
+
+        upload_response = self.client.get(reverse("imports:upload"))
+        self.assertEqual(upload_response.status_code, 302)
+        self.assertIn(reverse("accounts:admin_login"), upload_response.url)
+
+    def test_student_navigation_does_not_show_admin_actions(self) -> None:
+        self.client.post(
+            self.login_url,
+            {"name": "张三", "student_number": "AUTH001"},
+        )
+
+        response = self.client.get(self.profile_url)
+
+        self.assertContains(response, "学生个人信息")
+        self.assertContains(response, "退出学生登录")
+        self.assertNotContains(response, "Excel上传")
+        self.assertNotContains(response, "退出管理员登录")
 
 
 @override_settings(ROOT_URLCONF=__name__)
