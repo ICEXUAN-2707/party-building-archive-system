@@ -24,7 +24,7 @@ from apps.imports.datatypes import (
     SheetResult,
 )
 from apps.imports.forms import MAX_EXCEL_UPLOAD_SIZE
-from apps.imports.models import ImportBatch, ImportErrorRecord, ImportWarningRecord
+from apps.imports.models import ImportBatch, ImportErrorRecord, ImportStatus, ImportWarningRecord
 from apps.imports.snapshots import PREVIEW_FILENAME, PREVIEW_HASH_FILENAME
 from apps.imports.storage import (
     ImportEvidenceIntegrityError,
@@ -368,6 +368,28 @@ class PreviewIntegrityTests(ExcelPreviewTestCase):
         self.assertContains(response, "2025年1月2日")
         self.assertContains(response, "REPORT_COUNT_MISMATCH")
 
+    def test_confirm_button_is_visible_for_confirmable_preview(self) -> None:
+        response = self.client.get(self.preview_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "确认正式导入")
+        self.assertContains(
+            response,
+            f'action="{reverse("imports:confirm", args=[self.batch.pk])}"',
+            html=False,
+        )
+        self.assertNotContains(response, "正式确认入口将在PR2实现")
+
+    def test_confirm_button_is_hidden_after_batch_leaves_previewed_status(self) -> None:
+        self.batch.status = ImportStatus.SUCCESS
+        self.batch.save(update_fields=["status"])
+
+        response = self.client.get(self.preview_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "确认正式导入")
+        self.assertContains(response, "不能再次确认导入")
+
     def test_original_file_tampering_rejects_preview(self) -> None:
         original_path = Path(self.temp_media.name) / self.batch.stored_file.name
         original_path.write_bytes(b"tampered")
@@ -411,6 +433,7 @@ class PreviewIntegrityTests(ExcelPreviewTestCase):
         preview_response = self.client.get(reverse("imports:preview", args=[batch.pk]))
         self.assertEqual(response.status_code, 302)
         self.assertContains(preview_response, "出现多次")
+        self.assertNotContains(preview_response, "确认正式导入")
         snapshot = json.loads(artifact_path(batch.pk, PREVIEW_FILENAME).read_text(encoding="utf-8"))
         self.assertFalse(snapshot["can_confirm"])
 
@@ -427,6 +450,7 @@ class PreviewIntegrityTests(ExcelPreviewTestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(preview_response.status_code, 200)
         self.assertContains(preview_response, "没有有效候选行")
+        self.assertNotContains(preview_response, "确认正式导入")
 
 
 class BusinessTableZeroWriteTests(ExcelPreviewTestCase):
