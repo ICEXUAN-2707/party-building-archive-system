@@ -12,12 +12,12 @@
   <nav class="navbar navbar-expand-lg bg-white border-bottom">
     <div class="container">
       <a class="navbar-brand fw-semibold" href="{% url 'home' %}">学生材料查询系统</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+              aria-controls="mainNav" aria-expanded="false" aria-label="展开或收起导航">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="mainNav">
         <ul class="navbar-nav ms-auto">
-          <li class="nav-item"><a class="nav-link" href="{% url 'accounts:student_login' %}">学生登录</a></li>
           {% if user.is_authenticated %}
             {% if user.role == 'data_admin' %}
             <li class="nav-item"><a class="nav-link" href="{% url 'imports:upload' %}">Excel上传</a></li>
@@ -28,16 +28,17 @@
                 <button type="submit" class="nav-link btn btn-link border-0">退出管理员登录</button>
               </form>
             </li>
+          {% elif request.session.student_id %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'students:student_profile' %}">学生个人信息</a></li>
+            <li class="nav-item">
+              <form method="POST" action="{% url 'accounts:student_logout' %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="nav-link btn btn-link border-0">退出学生登录</button>
+              </form>
+            </li>
           {% else %}
+            <li class="nav-item"><a class="nav-link" href="{% url 'accounts:student_login' %}">学生登录</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'accounts:admin_login' %}">管理员登录</a></li>
-          {% endif %}
-          {% if request.session.student_id %}
-          <li class="nav-item">
-            <form method="POST" action="{% url 'accounts:student_logout' %}" class="d-inline">
-              {% csrf_token %}
-              <button type="submit" class="nav-link btn btn-link">退出学生登录</button>
-            </form>
-          </li>
           {% endif %}
         </ul>
       </div>

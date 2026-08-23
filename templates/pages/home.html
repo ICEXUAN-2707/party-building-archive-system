@@ -3,25 +3,14 @@
 {% block title %}首页 - 学院学生材料信息查询系统{% endblock %}
 
 {% block content %}
-<section class="py-4">
-  <div class="row align-items-center g-4">
-    <div class="col-lg-7">
-      <p class="text-uppercase text-primary fw-semibold small mb-2">Project foundation</p>
+<section class="py-4 py-md-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-9 col-xl-8 text-center">
       <h1 class="display-6 fw-semibold mb-3">学院学生材料信息查询系统</h1>
-      <p class="lead text-secondary mb-4">系统已提供学生查询、管理员查询与Excel服务端预览入口。</p>
-      <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-primary" href="{% url 'accounts:student_login' %}">学生查询入口</a>
-        <a class="btn btn-outline-primary" href="{% url 'students:admin_student_list' %}">管理员查询入口</a>
-      </div>
-    </div>
-    <div class="col-lg-5">
-      <div class="surface p-4">
-        <h2 class="h5 mb-3">功能入口</h2>
-        <div class="list-group list-group-flush">
-          <a class="list-group-item px-0" href="{% url 'students:student_profile' %}">学生个人信息占位页</a>
-          <a class="list-group-item px-0" href="{% url 'imports:upload' %}">Excel上传与预览</a>
-          <a class="list-group-item px-0" href="{% url 'imports:history' %}">导入历史</a>
-        </div>
+      <p class="lead text-secondary mb-4">请选择对应身份登录系统。</p>
+      <div class="d-grid gap-3 d-sm-flex justify-content-sm-center">
+        <a class="btn btn-primary px-4" href="{% url 'accounts:student_login' %}">学生登录</a>
+        <a class="btn btn-outline-primary px-4" href="{% url 'accounts:admin_login' %}">管理员登录</a>
       </div>
     </div>
   </div>

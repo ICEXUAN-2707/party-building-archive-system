@@ -22,7 +22,11 @@
       原文件与服务端preview快照完整性校验通过。当前页面只读，尚未执行正式导入。
     </div>
 
-    {% if conflicts %}
+    {% if batch.status != "previewed" %}
+      <div class="alert alert-secondary" role="alert">
+        当前批次状态为“{{ batch.get_status_display }}”，不能再次确认导入。
+      </div>
+    {% elif conflicts %}
       <div class="alert alert-danger" role="alert">
         <strong>批次存在冲突，不能确认：</strong>
         <ul class="mb-0 mt-2">
@@ -32,7 +36,13 @@
     {% elif not snapshot.can_confirm %}
       <div class="alert alert-warning" role="alert">当前批次没有有效候选行，不能确认导入。</div>
     {% else %}
-      <div class="alert alert-info" role="alert">候选数据已冻结。正式确认入口将在PR2实现。</div>
+      <div class="alert alert-warning" role="alert">
+        候选数据已冻结并通过校验。确认后将写入正式业务数据，请核对下方预览内容。
+      </div>
+      <form method="post" action="{% url 'imports:confirm' batch.id %}" class="mb-4">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">确认正式导入</button>
+      </form>
     {% endif %}
 
     <div class="row g-3 mb-4">
