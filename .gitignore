@@ -149,6 +149,7 @@ activemq-data/
 
 # Environments
 .env
+.env.production
 .envrc
 .venv/
 .venv
@@ -220,6 +221,9 @@ artifacts/acceptance/
 *.xlsx
 *.xls
 ~$*
+/deploy/compose.env
+/deploy/runtime/
+*.key
 
 # Marimo
 marimo/_static/
