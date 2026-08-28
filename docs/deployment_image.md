@@ -24,6 +24,7 @@ python manage.py collectstatic --noinput
 ```
 
 生产配置不完整时，Django配置门禁会在静态收集阶段阻止启动。静态收集成功后，入口进程被替换为Gunicorn。
+镜像声明`SIGINT`为停止信号，确保Docker Desktop和Linux Docker Engine停止容器时通知Gunicorn退出工作进程。
 
 Gunicorn冻结为单worker，避免部署人员通过环境变量开启多进程并扩大SQLite写入竞争。允许调整：
 
@@ -42,6 +43,18 @@ Gunicorn冻结为单worker，避免部署人员通过环境变量开启多进程
 ```text
 docker build --pull --tag party-archive-web:dep03 .
 ```
+
+`Dockerfile`默认仍从Docker Hub获取冻结的Python基础镜像。如构建环境无法访问
+`auth.docker.io`，可通过显式参数使用经部署人员审核的镜像源：
+
+```text
+docker build --pull \
+  --build-arg PYTHON_IMAGE=<approved-registry>/library/python:3.12.14-slim-bookworm \
+  --tag party-archive-web:dep03 .
+```
+
+不得在`Dockerfile`中硬编码个人镜像加速器，也不得为绕过网络故障而关闭TLS校验。
+替代镜像源必须保留完整镜像名称和冻结标签，构建报告必须记录最终镜像摘要。
 
 构建后必须检查：
 

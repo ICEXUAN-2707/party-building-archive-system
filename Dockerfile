@@ -1,4 +1,5 @@
-FROM python:3.12.14-slim-bookworm
+ARG PYTHON_IMAGE=python:3.12.14-slim-bookworm
+FROM ${PYTHON_IMAGE}
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -26,5 +27,7 @@ RUN mkdir -p /data/database /data/media /data/static /data/backups \
 USER app
 
 EXPOSE 8000
+
+STOPSIGNAL SIGINT
 
 ENTRYPOINT ["python", "/app/scripts/docker_entrypoint.py"]

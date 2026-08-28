@@ -9,8 +9,10 @@ class DockerImageContractTests(SimpleTestCase):
     def test_dockerfile_uses_pinned_python_and_non_root_runtime(self) -> None:
         dockerfile = (BASE_DIR / "Dockerfile").read_text(encoding="utf-8")
 
-        self.assertIn("FROM python:3.12.14-slim-bookworm", dockerfile)
+        self.assertIn("ARG PYTHON_IMAGE=python:3.12.14-slim-bookworm", dockerfile)
+        self.assertIn("FROM ${PYTHON_IMAGE}", dockerfile)
         self.assertIn("USER app", dockerfile)
+        self.assertIn("STOPSIGNAL SIGINT", dockerfile)
         self.assertIn('ENTRYPOINT ["python", "/app/scripts/docker_entrypoint.py"]', dockerfile)
         self.assertNotIn("runserver", dockerfile)
         self.assertNotIn("COPY . ", dockerfile)
