@@ -1,0 +1,11 @@
+[Unit]
+Description=Party Archive verified daily local and COS backup
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=party-archive-ops
+ExecStart=/srv/party-archive/app/scripts/run_daily_backup.sh
+StandardOutput=journal
+StandardError=journal
