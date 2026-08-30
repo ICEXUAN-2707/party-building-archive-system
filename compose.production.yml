@@ -46,13 +46,18 @@ services:
         - CMD
         - python
         - -c
-        - "import socket; connection = socket.create_connection(('127.0.0.1', 8000), 3); connection.close()"
+        - "import http.client, os, sys; connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=3); connection.request('GET', '/health/ready/', headers={'Host': os.environ['DJANGO_ALLOWED_HOSTS'].split(',')[0], 'X-Forwarded-Proto': 'https'}); response = connection.getresponse(); sys.exit(0 if response.status == 200 and response.read() == b'ok\\n' else 1)"
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
     networks:
       - backend
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
 
   nginx:
     image: ${NGINX_IMAGE:-nginx:1.28.0-alpine}
@@ -115,6 +120,11 @@ services:
     networks:
       - frontend
       - backend
+    logging:
+      driver: local
+      options:
+        max-size: "20m"
+        max-file: "5"
 
 networks:
   frontend:

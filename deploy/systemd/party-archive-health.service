@@ -1,0 +1,12 @@
+[Unit]
+Description=Party Archive production health check
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=party-archive-ops
+EnvironmentFile=-/srv/party-archive/secrets/monitoring.env
+ExecStart=/srv/party-archive/app/scripts/check_production_health.sh
+StandardOutput=journal
+StandardError=journal
