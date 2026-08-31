@@ -198,6 +198,37 @@ class PostTestArtifactGuardTests(SimpleTestCase):
 
         self.assertEqual(problems, [])
 
+    def test_acceptance_evidence_directory_is_exempt(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            evidence_dir = root / "artifacts" / "acceptance" / "run-1500" / "media"
+            evidence_dir.mkdir(parents=True)
+            (evidence_dir / "acceptance.xlsx").touch()
+            (evidence_dir / "acceptance.sqlite3").touch()
+            (evidence_dir / "database.backup").touch()
+
+            problems = find_post_test_artifacts(root)
+
+        self.assertEqual(problems, [])
+
+    def test_acceptance_named_artifacts_outside_evidence_directory_are_reported(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            other_dir = root / "artifacts" / "other"
+            other_dir.mkdir(parents=True)
+            (other_dir / "acceptance.xlsx").touch()
+            (other_dir / "database.backup").touch()
+
+            problems = find_post_test_artifacts(root)
+
+        self.assertEqual(
+            {problem.path for problem in problems},
+            {
+                "artifacts/other/acceptance.xlsx",
+                "artifacts/other/database.backup",
+            },
+        )
+
 
 class CiTempDatabaseArtifactGuardTests(SimpleTestCase):
     def test_ci_database_and_sidecar_artifacts_are_reported(self) -> None:
