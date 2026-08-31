@@ -7,8 +7,8 @@
 | 核验日期 | 2026-08-31 |
 | 发布候选代码SHA | `72653d96d0f8728736d1ae9baf3274897fed3f63` |
 | 候选分支 | `release/baseline-convergence` |
-| 当前候选状态 | Conditional Go |
-| 原因 | 本地门禁通过，等待远端Repository policy、Ubuntu和Windows CI证据 |
+| 当前候选状态 | Go |
+| 原因 | 本地门禁、Repository policy、Ubuntu和Windows CI全部通过 |
 | 正式候选报告 | 已生成并校验 |
 
 本索引不提交Excel、SQLite、媒体文件、备份或密钥。验收产物只保存在Git忽略的授权目录，
@@ -107,18 +107,24 @@ artifacts/acceptance/run-1500-72653d9-20260831/acceptance_report.json
 
 ## 6. 远端与生产证据缺口
 
-以下证据尚未取得：
+基线远端证据：
 
-1. Repository policy、Ubuntu和Windows CI运行链接；
-2. Docker真实构建和容器健康冒烟；
-3. RC Tag及不可变镜像摘要；
-4. 云服务器、域名、TLS、安全组和责任人登记；
-5. COS异机恢复和应用回退演练。
+- PR：`https://github.com/ICEXUAN-2707/party-building-archive-system/pull/34`；
+- CI运行：`https://github.com/ICEXUAN-2707/party-building-archive-system/actions/runs/33357654268`；
+- Repository policy：通过；
+- Django tests（Ubuntu）：通过；
+- Django tests（Windows）：通过。
+
+以下生产证据尚未取得：
+
+1. Docker真实构建和容器健康冒烟；
+2. RC Tag及不可变镜像摘要；
+3. 云服务器、域名、TLS、安全组和责任人登记；
+4. COS异机恢复和应用回退演练。
 
 ## 7. 下一门禁
 
-1. 推送本证据更新；
-2. 取得Repository policy、Ubuntu和Windows CI证据；
-3. CI通过后将BASE-07结论从Conditional Go更新为Go；
-4. 创建`develop`目标发布准备PR，不直接部署生产；
-5. 基线Go后进入DEP-08至DEP-10。
+1. 审核并合并PR #34到`develop`；
+2. 按`docs/sprint/deployment_release_engineering_plan.md`进入DEP-08；
+3. DEP-08通过后依次执行DEP-09和DEP-10；
+4. DEP-10通过前不创建正式Tag、不部署生产、不导入真实数据。
