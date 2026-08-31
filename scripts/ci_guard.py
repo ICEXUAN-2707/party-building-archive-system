@@ -95,6 +95,12 @@ CI_SQLITE_ARTIFACT_NAMES: tuple[str, ...] = tuple(
     for suffix in ("", "-journal", "-wal", "-shm")
 )
 
+# 联合验收工具会将脱敏Excel、独立SQLite和媒体证据写入该Git忽略目录。
+# 这里只豁免冻结的证据根目录，避免放宽仓库其他位置的污染检查。
+POST_TEST_ARTIFACT_EXEMPT_PREFIXES: tuple[str, ...] = (
+    "artifacts/acceptance/",
+)
+
 
 @dataclass(frozen=True)
 class Problem:
@@ -214,6 +220,8 @@ def find_post_test_artifacts(root: Path) -> list[Problem]:
     problems: list[Problem] = []
     for file_path in _iter_repository_files(root):
         relative_path = file_path.relative_to(root).as_posix()
+        if relative_path.startswith(POST_TEST_ARTIFACT_EXEMPT_PREFIXES):
+            continue
         lowered_name = file_path.name.lower()
         if relative_path in {"db.sqlite3", "db.sqlite3-journal"}:
             problems.append(
