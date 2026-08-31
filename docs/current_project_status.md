@@ -59,7 +59,7 @@ BASE-01至BASE-07已经通过。下一阶段按DEP-08容器CI、DEP-09运维手�
 
 在干净的最新`develop`工作树完成：
 
-- Python 3.12.10、Django 5.2.4、openpyxl 3.1.5及COS SDK可用；
+- Python 3.12.10、Django 5.2.8、openpyxl 3.1.5及COS SDK可用；
 - `python manage.py check`通过；
 - `python manage.py makemigrations --check --dry-run`通过，无模型变更；
 - 生产设置、Docker镜像契约、entrypoint、Compose、静态资源、可观测性和备份自动化共39项专项测试通过；
