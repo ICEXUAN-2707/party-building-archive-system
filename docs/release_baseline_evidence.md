@@ -5,10 +5,11 @@
 | 项目 | 内容 |
 | --- | --- |
 | 核验日期 | 2026-08-31 |
-| 起始代码SHA | `d14003df839217ead49a5c45cf699713a527dd32` |
-| 当前候选状态 | Conditional No-Go |
-| 原因 | `ci_guard`修复及基线文档尚未形成新的提交SHA |
-| 正式候选报告 | 待新SHA形成后重跑 |
+| 发布候选代码SHA | `72653d96d0f8728736d1ae9baf3274897fed3f63` |
+| 候选分支 | `release/baseline-convergence` |
+| 当前候选状态 | Conditional Go |
+| 原因 | 本地门禁通过，等待远端Repository policy、Ubuntu和Windows CI证据 |
+| 正式候选报告 | 已生成并校验 |
 
 本索引不提交Excel、SQLite、媒体文件、备份或密钥。验收产物只保存在Git忽略的授权目录，
 仓库仅记录报告摘要、SHA-256和门禁结论。
@@ -48,34 +49,25 @@ tests/test_ci_guard.py
 
 ### 3.2 全量测试
 
-修复前基线运行：
+候选SHA正式运行：
 
 ```text
-代码SHA：d14003df839217ead49a5c45cf699713a527dd32
-测试数：382
-结果：通过
-耗时：441.789秒
-```
-
-`ci_guard`修复后运行：
-
-```text
-代码基线：d14003d加当前未提交收敛差异
+代码SHA：72653d96d0f8728736d1ae9baf3274897fed3f63
 测试数：384
 结果：通过
-耗时：497.505秒
+耗时：405.486秒
 污染检查：通过
 ```
 
-修复后测试结果证明当前工作树通过，但未提交差异没有稳定Git SHA，因此不能代替正式候选CI。
+候选在独立临时SQLite数据库完成空库迁移和全量回归，仓库工作树测试后无未授权产物。
 
 ## 4. 联合验收证据
 
-### 4.1 前置成功报告
+### 4.1 正式候选报告
 
 | 项目 | 内容 |
 | --- | --- |
-| 报告Git SHA | `d14003df839217ead49a5c45cf699713a527dd32` |
+| 报告Git SHA | `72653d96d0f8728736d1ae9baf3274897fed3f63` |
 | 固定种子 | `20260822` |
 | 学生数 | 1500 |
 | 支部数 | 9 |
@@ -83,16 +75,17 @@ tests/test_ci_guard.py
 | 第二批 | 1500行成功，更新1500名学生和4500条思想汇报 |
 | 回滚后 | 1500名学生、1500条申请、1500条汇总、4500条有效思想汇报 |
 | 重启复查 | 通过 |
-| 报告SHA-256 | `DC90575E3481F8CA9941FB3A8363C3B55E7FE14FD62F10D302EDD9BA3AA87B08` |
+| 总耗时 | 89.669秒 |
+| 报告SHA-256 | `B9CA1DC24470B5C6C99D17227AF3A080047105E506E423C7D98366CFD91059D3` |
 
 报告位于本地Git忽略目录：
 
 ```text
-artifacts/acceptance/run-1500-d14003d-20260831/acceptance_report.json
+artifacts/acceptance/run-1500-72653d9-20260831/acceptance_report.json
 ```
 
-该报告证明`d14003d`业务链路通过。由于随后修复了`ci_guard`，新候选SHA形成后必须使用相同
-学生规模和固定种子重新运行，生成新的报告哈希。
+该报告的`git_sha`与发布候选完全一致，使用固定学生规模和固定种子完成完整业务链路及
+新进程重启复查。
 
 ## 5. 部署专项证据
 
@@ -116,18 +109,16 @@ artifacts/acceptance/run-1500-d14003d-20260831/acceptance_report.json
 
 以下证据尚未取得：
 
-1. 新候选SHA；
-2. Repository policy、Ubuntu和Windows CI运行链接；
-3. 新候选SHA对应的1500条验收报告；
-4. Docker真实构建和容器健康冒烟；
-5. RC Tag及不可变镜像摘要；
-6. 云服务器、域名、TLS、安全组和责任人登记；
-7. COS异机恢复和应用回退演练。
+1. Repository policy、Ubuntu和Windows CI运行链接；
+2. Docker真实构建和容器健康冒烟；
+3. RC Tag及不可变镜像摘要；
+4. 云服务器、域名、TLS、安全组和责任人登记；
+5. COS异机恢复和应用回退演练。
 
 ## 7. 下一门禁
 
-1. 审查当前5个候选文件；
-2. 在批准的发布准备分支形成单一候选提交；
-3. 以新SHA重跑384项测试和1500条联合验收；
-4. 推送并取得双平台CI证据；
-5. 更新本索引后进行BASE-07发布评审。
+1. 推送本证据更新；
+2. 取得Repository policy、Ubuntu和Windows CI证据；
+3. CI通过后将BASE-07结论从Conditional Go更新为Go；
+4. 创建`develop`目标发布准备PR，不直接部署生产；
+5. 基线Go后进入DEP-08至DEP-10。
