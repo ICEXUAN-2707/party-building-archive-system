@@ -10,6 +10,7 @@ from config import views
 
 urlpatterns = [
     path("", TemplateView.as_view(template_name="pages/home.html"), name="home"),
+    path("health/live/", views.liveness, name="liveness"),
     path("health/ready/", views.readiness, name="readiness"),
     path("admin/", admin.site.urls),
     path("accounts/", include("apps.accounts.urls")),

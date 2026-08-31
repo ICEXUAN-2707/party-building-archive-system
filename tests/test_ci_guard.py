@@ -18,6 +18,7 @@ from scripts.ci_guard import (
 class RequiredFileGuardTests(SimpleTestCase):
     STABLE_TEST_FILES = {
         "tests/test_foundation.py",
+        "tests/test_container_ci_contract.py",
         "tests/test_settings.py",
         "tests/test_student_auth.py",
         "tests/test_student_session.py",

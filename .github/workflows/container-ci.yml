@@ -1,0 +1,90 @@
+name: Container CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  push:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  container-contract:
+    name: Container policy and contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+
+      - name: Install application dependencies
+        run: python -m pip install --disable-pip-version-check -r requirements.txt
+
+      - name: Check repository policy
+        run: python scripts/ci_guard.py
+
+      - name: Run container contract tests
+        run: >-
+          python manage.py test
+          tests.test_container_ci_contract
+          tests.test_deployment_compose_contract
+          tests.test_docker_entrypoint
+          tests.test_docker_image_contract
+          tests.test_observability_contract
+          tests.test_static_assets_contract
+
+  container-smoke:
+    name: Build, scan, and smoke production containers
+    needs:
+      - container-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      WEB_IMAGE: party-archive-web:${{ github.sha }}
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Build immutable candidate image
+        run: docker build --pull --tag "${WEB_IMAGE}" .
+
+      - name: Record image identity
+        run: |
+          docker image inspect "${WEB_IMAGE}" \
+            --format 'image_id={{.Id}} user={{.Config.User}} created={{.Created}}'
+
+      - name: Scan candidate image for fixed critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.WEB_IMAGE }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL
+
+      - name: Run production Compose smoke test
+        run: >-
+          python scripts/container_smoke_test.py
+          --image "${WEB_IMAGE}"
+          --workspace "${RUNNER_TEMP}/party-archive-container-smoke"
+          --project-name "party-archive-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
