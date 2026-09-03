@@ -88,7 +88,8 @@ def write_runtime_files(workspace: Path, image: str, project_name: str) -> tuple
                 f"WEB_IMAGE={image}",
                 "NGINX_IMAGE=nginx:1.28.0-alpine",
                 f"NGINX_SERVER_NAME={SMOKE_HOST}",
-                f"PARTY_ARCHIVE_ROOT={data_root.as_posix()}",
+                # Compose appends /data/<name>; point it at the workspace root.
+                f"PARTY_ARCHIVE_ROOT={workspace.as_posix()}",
                 f"PRODUCTION_ENV_FILE={production_env.as_posix()}",
                 "HTTP_BIND_ADDRESS=127.0.0.1",
                 "HTTP_PORT=18080",

@@ -76,6 +76,8 @@ class ContainerSmokeSafetyTests(SimpleTestCase):
         self.assertIn("DJANGO_ALLOWED_HOSTS=8.8.8.8", production)
         self.assertIn("DJANGO_CSRF_TRUSTED_ORIGINS=http://8.8.8.8", production)
         self.assertIn("WEB_IMAGE=party-archive-web:test-sha", compose)
+        self.assertIn(f"PARTY_ARCHIVE_ROOT={workspace.as_posix()}", compose)
+        self.assertNotIn(f"PARTY_ARCHIVE_ROOT={(workspace / 'data').as_posix()}", compose)
         self.assertIn("HTTP_BIND_ADDRESS=127.0.0.1", compose)
         self.assertNotIn("HTTPS_BIND_ADDRESS", compose)
 

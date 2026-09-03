@@ -46,7 +46,7 @@ services:
         - CMD
         - python
         - -c
-        - "import http.client, os, sys; connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=3); connection.request('GET', '/health/ready/', headers={'Host': os.environ['DJANGO_ALLOWED_HOSTS'].split(',')[0], 'X-Forwarded-Proto': 'https'}); response = connection.getresponse(); sys.exit(0 if response.status == 200 and response.read() == b'ok\\n' else 1)"
+        - "import http.client, os, sys; connection = http.client.HTTPConnection('127.0.0.1', 8000, timeout=3); connection.request('GET', '/health/ready/', headers={'Host': os.environ['DJANGO_ALLOWED_HOSTS'].split(',')[0], 'X-Forwarded-Proto': 'http'}); response = connection.getresponse(); sys.exit(0 if response.status == 200 and response.read() == b'ok\\n' else 1)"
       interval: 30s
       timeout: 5s
       retries: 3

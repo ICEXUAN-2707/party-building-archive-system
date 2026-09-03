@@ -27,6 +27,8 @@ class ProductionComposeContractTests(SimpleTestCase):
         self.assertIn('"${HTTP_BIND_ADDRESS:-0.0.0.0}:${HTTP_PORT:-80}:80"', self.compose)
         self.assertNotIn("HTTPS_PORT", self.compose)
         self.assertNotIn(":443", self.compose)
+        self.assertIn("'X-Forwarded-Proto': 'http'", self.compose)
+        self.assertNotIn("'X-Forwarded-Proto': 'https'", self.compose)
 
     def test_runtime_limits_match_two_core_four_gib_host(self) -> None:
         self.assertIn("mem_limit: 2g", self.compose)
