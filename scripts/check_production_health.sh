@@ -4,9 +4,8 @@ set -euo pipefail
 ROOT="${PARTY_ARCHIVE_ROOT:-/srv/party-archive}"
 COMPOSE_FILE="${COMPOSE_FILE:-${ROOT}/app/compose.production.yml}"
 COMPOSE_ENV="${COMPOSE_ENV:-${ROOT}/app/deploy/compose.env}"
-HEALTH_URL="${HEALTH_URL:-https://127.0.0.1/health/ready/}"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1/health/ready/}"
 SERVER_NAME="${NGINX_SERVER_NAME:?NGINX_SERVER_NAME is required}"
-TLS_CERT_FILE="${TLS_CERT_FILE:-${ROOT}/secrets/tls/fullchain.pem}"
 BACKUP_SUCCESS_FILE="${BACKUP_SUCCESS_FILE:-${ROOT}/data/backups/.last-offsite-success}"
 DISK_WARNING_PERCENT="${DISK_WARNING_PERCENT:-80}"
 DISK_CRITICAL_PERCENT="${DISK_CRITICAL_PERCENT:-90}"
@@ -35,8 +34,8 @@ for service in web nginx; do
 done
 
 if ! curl --fail --silent --show-error --max-time 10 \
-    --resolve "${SERVER_NAME}:443:127.0.0.1" "https://${SERVER_NAME}/health/ready/" >/dev/null; then
-    transient_failures+=("https-readiness")
+    --header "Host: ${SERVER_NAME}" "${HEALTH_URL}" >/dev/null; then
+    transient_failures+=("http-readiness")
 fi
 
 disk_percent="$(df -P "${ROOT}" | awk 'NR==2 {gsub(/%/, "", $5); print $5}')"
@@ -44,13 +43,6 @@ if (( disk_percent >= DISK_CRITICAL_PERCENT )); then
     failures+=("disk:${disk_percent}%")
 elif (( disk_percent >= DISK_WARNING_PERCENT )); then
     warnings+=("disk:${disk_percent}%")
-fi
-
-if ! openssl x509 -checkend $((30 * 86400)) -noout -in "${TLS_CERT_FILE}" >/dev/null 2>&1; then
-    warnings+=("tls-expiry-within-30-days")
-fi
-if ! openssl x509 -checkend $((7 * 86400)) -noout -in "${TLS_CERT_FILE}" >/dev/null 2>&1; then
-    failures+=("tls-expiry-within-7-days")
 fi
 
 if [[ ! -f "${BACKUP_SUCCESS_FILE}" ]]; then

@@ -17,6 +17,6 @@ install -d -m 0750 -o "${APP_UID}" -g "${APP_GID}" \
     "${ROOT}/data/static" \
     "${ROOT}/data/backups"
 install -d -m 0750 "${ROOT}/data/logs"
-install -d -m 0700 "${ROOT}/secrets" "${ROOT}/secrets/tls"
+install -d -m 0700 "${ROOT}/secrets"
 
 echo "Initialized ${ROOT}; existing files were not removed or overwritten."

@@ -8,21 +8,6 @@ server {
     listen [::]:80 default_server;
     server_name ${NGINX_SERVER_NAME};
 
-    return 308 https://$server_name$request_uri;
-}
-
-server {
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    server_name ${NGINX_SERVER_NAME};
-
-    ssl_certificate /etc/nginx/tls/fullchain.pem;
-    ssl_certificate_key /etc/nginx/tls/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_session_cache shared:TLS:10m;
-    ssl_session_timeout 10m;
-    ssl_session_tickets off;
-
     client_max_body_size 25m;
     client_body_timeout 60s;
 
@@ -36,7 +21,7 @@ server {
         access_log off;
         proxy_pass http://party_archive_web;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Proto http;
         proxy_connect_timeout 3s;
         proxy_read_timeout 3s;
     }
@@ -58,7 +43,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Proto http;
         proxy_set_header Connection "";
         proxy_connect_timeout 5s;
         proxy_send_timeout 120s;

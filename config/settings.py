@@ -1,6 +1,7 @@
 """Project settings for the student material archive system."""
 
 import os
+from ipaddress import IPv4Address, AddressValueError
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -131,20 +132,18 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = env_path("DJANGO_MEDIA_ROOT", BASE_DIR / "media")
 BACKUP_ROOT = env_path("DJANGO_BACKUP_ROOT", BASE_DIR / "backups")
 
-SECURE_SSL_REDIRECT = PRODUCTION
-SESSION_COOKIE_SECURE = PRODUCTION
-CSRF_COOKIE_SECURE = PRODUCTION
+# V1.4 首版生产环境固定使用公网 IPv4 的 HTTP 入口，由安全组限制访问来源。
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
-SECURE_HSTS_SECONDS = env_int("DJANGO_SECURE_HSTS_SECONDS", 3600 if PRODUCTION else 0)
-SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
-SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", False)
+SECURE_HSTS_SECONDS = 0
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
-
-if PRODUCTION:
-    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 LOG_LEVEL = env("DJANGO_LOG_LEVEL", "INFO" if PRODUCTION else "WARNING").upper()
 LOGGING = {
@@ -188,14 +187,22 @@ def validate_production_settings() -> None:
         "django-insecure-"
     ):
         problems.append("DJANGO_SECRET_KEY必须设置为至少50字符且具有足够随机性的生产密钥")
-    if not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS:
-        problems.append("DJANGO_ALLOWED_HOSTS必须显式配置且不能包含通配符")
-    if {"localhost", "127.0.0.1"}.intersection(ALLOWED_HOSTS):
-        problems.append("生产DJANGO_ALLOWED_HOSTS不能使用本地开发地址")
-    if not CSRF_TRUSTED_ORIGINS or any(
-        not origin.startswith("https://") for origin in CSRF_TRUSTED_ORIGINS
-    ):
-        problems.append("DJANGO_CSRF_TRUSTED_ORIGINS必须配置HTTPS来源")
+    public_ipv4: str | None = None
+    if len(ALLOWED_HOSTS) != 1 or "*" in ALLOWED_HOSTS:
+        problems.append("DJANGO_ALLOWED_HOSTS必须且只能配置一个固定公网IPv4地址")
+    else:
+        try:
+            address = IPv4Address(ALLOWED_HOSTS[0])
+            if not address.is_global:
+                problems.append("DJANGO_ALLOWED_HOSTS必须使用固定公网IPv4地址")
+            else:
+                public_ipv4 = str(address)
+        except AddressValueError:
+            problems.append("DJANGO_ALLOWED_HOSTS必须使用合法IPv4地址")
+    if public_ipv4 and CSRF_TRUSTED_ORIGINS != [f"http://{public_ipv4}"]:
+        problems.append("DJANGO_CSRF_TRUSTED_ORIGINS必须且只能配置为http://<固定公网IPv4>")
+    elif not public_ipv4 and not CSRF_TRUSTED_ORIGINS:
+        problems.append("DJANGO_CSRF_TRUSTED_ORIGINS必须显式配置")
 
     configured_paths = {
         "DJANGO_SQLITE_PATH": Path(DATABASES["default"]["NAME"]),
@@ -209,8 +216,6 @@ def validate_production_settings() -> None:
         if not path.is_absolute():
             problems.append(f"{name}在生产环境必须是绝对路径")
 
-    if SECURE_HSTS_SECONDS <= 0:
-        problems.append("DJANGO_SECURE_HSTS_SECONDS必须大于0")
     if LOG_LEVEL not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         problems.append("DJANGO_LOG_LEVEL不是有效日志级别")
 

@@ -41,7 +41,7 @@ tests/test_ci_guard.py
 | 检查 | 结果 |
 | --- | --- |
 | Python | 3.12.10 |
-| Django | 5.2.4 |
+| Django | 5.2.8 |
 | `manage.py check` | 通过 |
 | `makemigrations --check --dry-run` | 通过，无模型变更 |
 | 空库`migrate --noinput` | 通过 |

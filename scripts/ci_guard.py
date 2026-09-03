@@ -16,17 +16,20 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_PROJECT_FILES: tuple[str, ...] = (
     "AGENTS.md",
     ".env.example",
+    ".github/workflows/container-ci.yml",
     "config/settings.py",
     "docs/spec.md",
     "manage.py",
     "requirements.txt",
     "scripts/ci_database_cleanup.py",
+    "scripts/container_smoke_test.py",
 )
 
 # 该清单只登记已经进入develop基线的测试，后续模块合入后由CI-03扩充。
 REQUIRED_TEST_FILES: tuple[str, ...] = (
     "tests/test_ci_database_cleanup.py",
     "tests/test_ci_guard.py",
+    "tests/test_container_ci_contract.py",
     "tests/test_excel_parser.py",
     "tests/test_foundation.py",
     "tests/test_imports_parser_header.py",

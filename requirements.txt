@@ -1,4 +1,4 @@
-Django==5.2.4
+Django==5.2.8
 openpyxl==3.1.5
 cos-python-sdk-v5==1.9.44
 gunicorn==25.0.0; platform_system != "Windows"
