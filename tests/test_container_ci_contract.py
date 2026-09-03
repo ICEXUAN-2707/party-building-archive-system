@@ -6,6 +6,7 @@ from django.test import SimpleTestCase
 
 from scripts.container_smoke_test import (
     SmokeFailure,
+    assert_branches,
     compose_command,
     require_ci_workspace,
     write_runtime_files,
@@ -85,6 +86,15 @@ class ContainerSmokeSafetyTests(SimpleTestCase):
         command = compose_command(Path("compose.env"), "down", "--remove-orphans")
         self.assertNotIn("--volumes", command)
         self.assertNotIn("-v", command)
+
+    @patch("scripts.container_smoke_test.run")
+    def test_branch_count_ignores_django_shell_auto_import_notice(self, mocked_run) -> None:
+        mocked_run.return_value.stdout = (
+            "15 objects imported automatically (use -v 2 for details).\n\n"
+            "PARTY_BRANCH_COUNT=9\n"
+        )
+
+        assert_branches("party-archive-web:test", Path("production.env"), Path("smoke"))
 
     @patch("scripts.container_smoke_test.subprocess.run")
     def test_command_runner_never_uses_shell(self, mocked_run) -> None:

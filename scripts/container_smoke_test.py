@@ -224,15 +224,24 @@ def assert_no_public_web_port(compose_env: Path) -> None:
 
 
 def assert_branches(image: str, production_env: Path, workspace: Path) -> None:
+    marker = "PARTY_BRANCH_COUNT="
     completed = run(
         [
             *image_admin_command(image, production_env, workspace, "shell", "-c"),
-            "from apps.students.models import PartyBranch; print(PartyBranch.objects.count())",
+            (
+                "from apps.students.models import PartyBranch; "
+                f"print('{marker}' + str(PartyBranch.objects.count()))"
+            ),
         ],
         capture_output=True,
     )
-    if completed.stdout.strip() != "9":
-        raise SmokeFailure(f"expected 9 branches, got {completed.stdout.strip()}")
+    count_lines = [
+        line.removeprefix(marker).strip()
+        for line in completed.stdout.splitlines()
+        if line.startswith(marker)
+    ]
+    if count_lines != ["9"]:
+        raise SmokeFailure(f"expected 9 branches, got {count_lines or 'no count marker'}")
 
 
 def execute(image: str, workspace: Path, project_name: str) -> None:
