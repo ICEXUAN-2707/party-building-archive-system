@@ -16,16 +16,17 @@ class ProductionComposeContractTests(SimpleTestCase):
         self.assertIn("no-new-privileges:true", self.compose)
         for path in ("database", "media", "static", "backups"):
             self.assertIn(f"/data/{path}", self.compose)
-        self.assertEqual(self.compose.count("create_host_path: false"), 6)
+        self.assertEqual(self.compose.count("create_host_path: false"), 5)
 
-    def test_compose_requires_external_secrets_and_tls(self) -> None:
+    def test_compose_requires_external_secrets_and_only_publishes_http(self) -> None:
         self.assertIn("PRODUCTION_ENV_FILE", self.compose)
-        self.assertIn("TLS_CERT_DIR", self.compose)
-        self.assertIn("NGINX_SERVER_NAME must be the reviewed deployment domain", self.compose)
+        self.assertNotIn("TLS_CERT_DIR", self.compose)
+        self.assertIn("NGINX_SERVER_NAME must be the reviewed fixed public IPv4 address", self.compose)
         self.assertNotIn("DJANGO_SECRET_KEY=", self.compose)
         self.assertNotIn("privkey.pem:", self.compose)
         self.assertIn('"${HTTP_BIND_ADDRESS:-0.0.0.0}:${HTTP_PORT:-80}:80"', self.compose)
-        self.assertIn('"${HTTPS_BIND_ADDRESS:-0.0.0.0}:${HTTPS_PORT:-443}:443"', self.compose)
+        self.assertNotIn("HTTPS_PORT", self.compose)
+        self.assertNotIn(":443", self.compose)
 
     def test_runtime_limits_match_two_core_four_gib_host(self) -> None:
         self.assertIn("mem_limit: 2g", self.compose)
@@ -42,12 +43,13 @@ class ProductionNginxContractTests(SimpleTestCase):
             encoding="utf-8"
         )
 
-    def test_https_proxy_and_static_contract(self) -> None:
+    def test_http_proxy_and_static_contract(self) -> None:
         self.assertIn("server_name ${NGINX_SERVER_NAME};", self.site)
-        self.assertIn("return 308 https://$server_name$request_uri;", self.site)
-        self.assertIn("ssl_protocols TLSv1.2 TLSv1.3;", self.site)
+        self.assertIn("listen 80 default_server;", self.site)
+        self.assertNotIn("listen 443", self.site)
+        self.assertNotIn("ssl_certificate", self.site)
         self.assertIn("proxy_pass http://party_archive_web;", self.site)
-        self.assertIn("proxy_set_header X-Forwarded-Proto https;", self.site)
+        self.assertIn("proxy_set_header X-Forwarded-Proto http;", self.site)
         self.assertIn("location /static/", self.site)
         self.assertNotIn("location /media/", self.site)
 
@@ -57,8 +59,8 @@ class ProductionNginxContractTests(SimpleTestCase):
         self.assertNotIn("$request_uri", log_format)
         self.assertNotIn("$args", log_format)
 
-    def test_tls_private_key_is_referenced_not_committed(self) -> None:
-        self.assertIn("/etc/nginx/tls/privkey.pem", self.site)
+    def test_tls_private_key_is_neither_referenced_nor_committed(self) -> None:
+        self.assertNotIn("/etc/nginx/tls/privkey.pem", self.site)
         self.assertFalse((BASE_DIR / "deploy/nginx/tls/privkey.pem").exists())
 
 

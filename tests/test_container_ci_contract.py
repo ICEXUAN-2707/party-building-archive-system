@@ -73,10 +73,11 @@ class ContainerSmokeSafetyTests(SimpleTestCase):
             compose = compose_env.read_text(encoding="utf-8")
 
         self.assertIn("DJANGO_PRODUCTION=True", production)
-        self.assertIn("DJANGO_ALLOWED_HOSTS=party.test.invalid", production)
+        self.assertIn("DJANGO_ALLOWED_HOSTS=8.8.8.8", production)
+        self.assertIn("DJANGO_CSRF_TRUSTED_ORIGINS=http://8.8.8.8", production)
         self.assertIn("WEB_IMAGE=party-archive-web:test-sha", compose)
         self.assertIn("HTTP_BIND_ADDRESS=127.0.0.1", compose)
-        self.assertIn("HTTPS_BIND_ADDRESS=127.0.0.1", compose)
+        self.assertNotIn("HTTPS_BIND_ADDRESS", compose)
 
     def test_compose_cleanup_never_requests_volume_deletion(self) -> None:
         command = compose_command(Path("compose.env"), "down", "--remove-orphans")

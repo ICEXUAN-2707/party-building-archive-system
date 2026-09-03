@@ -162,7 +162,7 @@ class DjangoSettingsProcessTests(SimpleTestCase):
         self.assertIn("生产配置无效", completed.stderr)
         self.assertNotIn("dev-only-change-me", completed.stderr)
 
-    def test_production_loads_secure_paths_and_proxy_settings(self) -> None:
+    def test_production_loads_http_ipv4_and_persistent_paths(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir).resolve()
             process_env = os.environ.copy()
@@ -172,8 +172,8 @@ class DjangoSettingsProcessTests(SimpleTestCase):
                     "DJANGO_PRODUCTION": "True",
                     "DJANGO_SECRET_KEY": "prod-test-A7!x9#secure-key-with-varied-characters-2026-08-23",
                     "DJANGO_DEBUG": "False",
-                    "DJANGO_ALLOWED_HOSTS": "party.example.edu.cn",
-                    "DJANGO_CSRF_TRUSTED_ORIGINS": "https://party.example.edu.cn",
+                    "DJANGO_ALLOWED_HOSTS": "8.8.8.8",
+                    "DJANGO_CSRF_TRUSTED_ORIGINS": "http://8.8.8.8",
                     "DJANGO_SQLITE_PATH": str(root / "database" / "db.sqlite3"),
                     "DJANGO_MEDIA_ROOT": str(root / "media"),
                     "DJANGO_STATIC_ROOT": str(root / "static"),
@@ -189,7 +189,7 @@ class DjangoSettingsProcessTests(SimpleTestCase):
                 "'ssl_redirect': settings.SECURE_SSL_REDIRECT, "
                 "'session_secure': settings.SESSION_COOKIE_SECURE, "
                 "'csrf_secure': settings.CSRF_COOKIE_SECURE, "
-                "'proxy_header': settings.SECURE_PROXY_SSL_HEADER, "
+                "'hsts_seconds': settings.SECURE_HSTS_SECONDS, "
                 "'media_root': str(settings.MEDIA_ROOT), "
                 "'static_root': str(settings.STATIC_ROOT), "
                 "'backup_root': str(settings.BACKUP_ROOT), "
@@ -210,14 +210,54 @@ class DjangoSettingsProcessTests(SimpleTestCase):
 
         self.assertIs(loaded["production"], True)
         self.assertIs(loaded["debug"], False)
-        self.assertIs(loaded["ssl_redirect"], True)
-        self.assertIs(loaded["session_secure"], True)
-        self.assertIs(loaded["csrf_secure"], True)
-        self.assertEqual(loaded["proxy_header"], ["HTTP_X_FORWARDED_PROTO", "https"])
+        self.assertIs(loaded["ssl_redirect"], False)
+        self.assertIs(loaded["session_secure"], False)
+        self.assertIs(loaded["csrf_secure"], False)
+        self.assertEqual(loaded["hsts_seconds"], 0)
         self.assertEqual(Path(loaded["media_root"]), root / "media")
         self.assertEqual(Path(loaded["static_root"]), root / "static")
         self.assertEqual(Path(loaded["backup_root"]), root / "backups")
         self.assertEqual(loaded["log_level"], "INFO")
+
+    def test_production_rejects_non_public_ipv4_or_mismatched_origin(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir).resolve()
+            required = {
+                "PYTHONUTF8": "1",
+                "DJANGO_PRODUCTION": "True",
+                "DJANGO_SECRET_KEY": "prod-test-A7!x9#secure-key-with-varied-characters-2026-08-23",
+                "DJANGO_DEBUG": "False",
+                "DJANGO_SQLITE_PATH": str(root / "database" / "db.sqlite3"),
+                "DJANGO_MEDIA_ROOT": str(root / "media"),
+                "DJANGO_STATIC_ROOT": str(root / "static"),
+                "DJANGO_BACKUP_ROOT": str(root / "backups"),
+            }
+            invalid_pairs = (
+                ("party.example.edu.cn", "http://party.example.edu.cn"),
+                ("192.168.1.10", "http://192.168.1.10"),
+                ("8.8.8.8", "https://8.8.8.8"),
+                ("8.8.8.8,1.1.1.1", "http://8.8.8.8"),
+            )
+            for host, origin in invalid_pairs:
+                with self.subTest(host=host, origin=origin):
+                    process_env = os.environ.copy()
+                    process_env.update(required)
+                    process_env.update(
+                        {
+                            "DJANGO_ALLOWED_HOSTS": host,
+                            "DJANGO_CSRF_TRUSTED_ORIGINS": origin,
+                        }
+                    )
+                    completed = subprocess.run(
+                        [sys.executable, "-c", "from config import settings"],
+                        cwd=project_settings.BASE_DIR,
+                        env=process_env,
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                    )
+                    self.assertNotEqual(completed.returncode, 0)
 
     def test_production_rejects_relative_persistence_paths(self) -> None:
         process_env = os.environ.copy()
@@ -227,8 +267,8 @@ class DjangoSettingsProcessTests(SimpleTestCase):
                 "DJANGO_PRODUCTION": "True",
                 "DJANGO_SECRET_KEY": "prod-test-A7!x9#secure-key-with-varied-characters-2026-08-23",
                 "DJANGO_DEBUG": "False",
-                "DJANGO_ALLOWED_HOSTS": "party.example.edu.cn",
-                "DJANGO_CSRF_TRUSTED_ORIGINS": "https://party.example.edu.cn",
+                "DJANGO_ALLOWED_HOSTS": "8.8.8.8",
+                "DJANGO_CSRF_TRUSTED_ORIGINS": "http://8.8.8.8",
                 "DJANGO_SQLITE_PATH": "data/db.sqlite3",
                 "DJANGO_MEDIA_ROOT": "data/media",
                 "DJANGO_STATIC_ROOT": "data/static",

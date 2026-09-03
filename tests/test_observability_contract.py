@@ -63,6 +63,6 @@ class ObservabilityContractTests(SimpleTestCase):
             encoding="utf-8"
         )
 
-        for signal in ("docker inspect", "df -P", "openssl x509", "BACKUP_SUCCESS_FILE", "timedatectl"):
+        for signal in ("docker inspect", "http-readiness", "df -P", "BACKUP_SUCCESS_FILE", "timedatectl"):
             with self.subTest(signal=signal):
                 self.assertIn(signal, script)

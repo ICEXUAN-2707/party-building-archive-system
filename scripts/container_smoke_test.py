@@ -6,7 +6,6 @@ import argparse
 import http.client
 import os
 from pathlib import Path
-import ssl
 import subprocess
 import sys
 import time
@@ -16,7 +15,7 @@ from typing import Sequence
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 COMPOSE_FILE = PROJECT_ROOT / "compose.production.yml"
 APP_UID_GID = "10001:10001"
-SMOKE_HOST = "party.test.invalid"
+SMOKE_HOST = "8.8.8.8"
 
 
 class SmokeFailure(RuntimeError):
@@ -56,10 +55,8 @@ def require_ci_workspace(workspace: Path, environment: dict[str, str]) -> Path:
 
 def write_runtime_files(workspace: Path, image: str, project_name: str) -> tuple[Path, Path]:
     data_root = workspace / "data"
-    tls_root = workspace / "tls"
     for name in ("database", "media", "static", "backups"):
         (data_root / name).mkdir(parents=True, exist_ok=True)
-    tls_root.mkdir(parents=True, exist_ok=True)
 
     production_env = workspace / ".env.production"
     production_env.write_text(
@@ -69,14 +66,11 @@ def write_runtime_files(workspace: Path, image: str, project_name: str) -> tuple
                 "DJANGO_SECRET_KEY=ci-container-smoke-only-7Vx9Qm2Lp4Nk6Rt8Yw3Hs5Df1Za0Bc",
                 "DJANGO_DEBUG=False",
                 f"DJANGO_ALLOWED_HOSTS={SMOKE_HOST}",
-                f"DJANGO_CSRF_TRUSTED_ORIGINS=https://{SMOKE_HOST}:18443",
+                f"DJANGO_CSRF_TRUSTED_ORIGINS=http://{SMOKE_HOST}",
                 "DJANGO_SQLITE_PATH=/data/database/db.sqlite3",
                 "DJANGO_MEDIA_ROOT=/data/media",
                 "DJANGO_STATIC_ROOT=/data/static",
                 "DJANGO_BACKUP_ROOT=/data/backups",
-                "DJANGO_SECURE_HSTS_SECONDS=3600",
-                "DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS=False",
-                "DJANGO_SECURE_HSTS_PRELOAD=False",
                 "DJANGO_LOG_LEVEL=INFO",
                 "GUNICORN_THREADS=2",
                 "GUNICORN_TIMEOUT=60",
@@ -96,11 +90,8 @@ def write_runtime_files(workspace: Path, image: str, project_name: str) -> tuple
                 f"NGINX_SERVER_NAME={SMOKE_HOST}",
                 f"PARTY_ARCHIVE_ROOT={data_root.as_posix()}",
                 f"PRODUCTION_ENV_FILE={production_env.as_posix()}",
-                f"TLS_CERT_DIR={tls_root.as_posix()}",
                 "HTTP_BIND_ADDRESS=127.0.0.1",
-                "HTTPS_BIND_ADDRESS=127.0.0.1",
                 "HTTP_PORT=18080",
-                "HTTPS_PORT=18443",
                 "",
             )
         ),
@@ -134,28 +125,6 @@ def image_admin_command(image: str, production_env: Path, workspace: Path, *argu
     for name in ("database", "media", "static", "backups"):
         command.extend(("--volume", f"{workspace / 'data' / name}:/data/{name}"))
     return [*command, image, "manage.py", *arguments]
-
-
-def generate_certificate(workspace: Path) -> None:
-    tls_root = workspace / "tls"
-    run(
-        [
-            "openssl",
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:2048",
-            "-nodes",
-            "-days",
-            "1",
-            "-subj",
-            f"/CN={SMOKE_HOST}",
-            "-keyout",
-            str(tls_root / "privkey.pem"),
-            "-out",
-            str(tls_root / "fullchain.pem"),
-        ]
-    )
 
 
 def assert_image_contract(image: str) -> None:
@@ -199,16 +168,8 @@ def assert_image_contract(image: str) -> None:
         raise SmokeFailure("image started without required production environment")
 
 
-def request_http(port: int, path: str, *, tls: bool = False) -> tuple[int, bytes, dict[str, str]]:
-    if tls:
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        connection: http.client.HTTPConnection = http.client.HTTPSConnection(
-            "127.0.0.1", port, timeout=5, context=context
-        )
-    else:
-        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+def request_http(port: int, path: str) -> tuple[int, bytes, dict[str, str]]:
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     try:
         connection.request("GET", path, headers={"Host": SMOKE_HOST})
         response = connection.getresponse()
@@ -217,38 +178,35 @@ def request_http(port: int, path: str, *, tls: bool = False) -> tuple[int, bytes
         connection.close()
 
 
-def wait_for_https(timeout_seconds: int = 120) -> None:
+def wait_for_http(timeout_seconds: int = 120) -> None:
     deadline = time.monotonic() + timeout_seconds
     last_error: Exception | None = None
     while time.monotonic() < deadline:
         try:
-            status, body, _ = request_http(18443, "/health/ready/", tls=True)
+            status, body, _ = request_http(18080, "/health/ready/")
             if status == 200 and body == b"ok\n":
                 return
-        except (OSError, ssl.SSLError) as exc:
+        except OSError as exc:
             last_error = exc
         time.sleep(2)
-    raise SmokeFailure(f"HTTPS readiness did not pass: {last_error}")
+    raise SmokeFailure(f"HTTP readiness did not pass: {last_error}")
 
 
 def assert_endpoints() -> None:
-    status, _, headers = request_http(18080, "/health/ready/")
-    if status != 308 or not headers.get("location", "").startswith("https://"):
-        raise SmokeFailure("HTTP does not redirect to HTTPS")
     expected = {
         "/nginx-health": b"ok\n",
         "/health/live/": b"ok\n",
         "/health/ready/": b"ok\n",
     }
     for path, expected_body in expected.items():
-        status, body, _ = request_http(18443, path, tls=True)
+        status, body, _ = request_http(18080, path)
         if status != 200 or body != expected_body:
             raise SmokeFailure(f"unexpected response from {path}: {status}")
     status, body, _ = request_http(
-        18443, "/static/vendor/bootstrap/5.3.3/css/bootstrap.min.css", tls=True
+        18080, "/static/vendor/bootstrap/5.3.3/css/bootstrap.min.css"
     )
     if status != 200 or b"Bootstrap" not in body[:500]:
-        raise SmokeFailure("vendored Bootstrap CSS is unavailable through HTTPS")
+        raise SmokeFailure("vendored Bootstrap CSS is unavailable through HTTP")
 
 
 def assert_no_public_web_port(compose_env: Path) -> None:
@@ -282,19 +240,18 @@ def execute(image: str, workspace: Path, project_name: str) -> None:
     compose_started = False
     try:
         run(["sudo", "chown", "-R", APP_UID_GID, str(workspace / "data")])
-        generate_certificate(workspace)
         assert_image_contract(image)
         run(image_admin_command(image, production_env, workspace, "migrate", "--noinput"))
         run(image_admin_command(image, production_env, workspace, "initialize_branches"))
         run(compose_command(compose_env, "config", "--quiet"))
         run(compose_command(compose_env, "up", "--detach"), timeout=240)
         compose_started = True
-        wait_for_https()
+        wait_for_http()
         assert_endpoints()
         assert_no_public_web_port(compose_env)
         assert_branches(image, production_env, workspace)
         run(compose_command(compose_env, "restart", "web"), timeout=120)
-        wait_for_https()
+        wait_for_http()
         assert_branches(image, production_env, workspace)
         print("[PASS] production container smoke test")
     finally:
@@ -302,11 +259,7 @@ def execute(image: str, workspace: Path, project_name: str) -> None:
             run(compose_command(compose_env, "ps"), check=False)
             run(compose_command(compose_env, "logs", "--tail", "200", "web", "nginx"), check=False)
             run(compose_command(compose_env, "down", "--remove-orphans"), check=False, timeout=120)
-        for sensitive_file in (
-            production_env,
-            workspace / "tls" / "privkey.pem",
-            workspace / "tls" / "fullchain.pem",
-        ):
+        for sensitive_file in (production_env,):
             sensitive_file.unlink(missing_ok=True)
 
 
