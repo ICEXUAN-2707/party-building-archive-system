@@ -10,6 +10,17 @@ from django.urls import reverse
 from config.settings import BASE_DIR
 
 
+class LivenessTests(TestCase):
+    def test_liveness_is_process_only_and_small(self) -> None:
+        with patch("config.views.connection.cursor") as cursor:
+            response = self.client.get(reverse("liveness"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok\n")
+        self.assertEqual(response["Content-Type"], "text/plain")
+        cursor.assert_not_called()
+
+
 class ReadinessTests(TestCase):
     def test_readiness_checks_database_without_exposing_details(self) -> None:
         response = self.client.get(reverse("readiness"))

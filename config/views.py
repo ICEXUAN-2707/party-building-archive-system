@@ -17,6 +17,11 @@ def server_error(request: HttpRequest) -> HttpResponse:
     return render(request, "500.html", status=500)
 
 
+def liveness(request: HttpRequest) -> HttpResponse:
+    """Return a process-only signal without touching business dependencies."""
+    return HttpResponse("ok\n", content_type="text/plain")
+
+
 def readiness(request: HttpRequest) -> HttpResponse:
     """Return a deliberately small readiness signal for the reverse proxy."""
     try:

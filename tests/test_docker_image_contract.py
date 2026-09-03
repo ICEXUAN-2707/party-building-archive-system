@@ -11,6 +11,7 @@ class DockerImageContractTests(SimpleTestCase):
 
         self.assertIn("ARG PYTHON_IMAGE=python:3.12.14-slim-bookworm", dockerfile)
         self.assertIn("FROM ${PYTHON_IMAGE}", dockerfile)
+        self.assertIn("DJANGO_PRODUCTION=True", dockerfile)
         self.assertIn("USER app", dockerfile)
         self.assertIn("STOPSIGNAL SIGINT", dockerfile)
         self.assertIn('ENTRYPOINT ["python", "/app/scripts/docker_entrypoint.py"]', dockerfile)
