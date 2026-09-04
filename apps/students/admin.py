@@ -1,5 +1,7 @@
 from django.contrib import admin
 
+from apps.audit.admin import AuditedModelAdmin
+
 from .models import PartyBranch, Student
 
 
@@ -12,7 +14,8 @@ class PartyBranchAdmin(admin.ModelAdmin):
 
 
 @admin.register(Student)
-class StudentAdmin(admin.ModelAdmin):
+class StudentAdmin(AuditedModelAdmin):
+    audit_target_type = "Student"
     list_display = ("student_number", "name", "branch", "development_stage", "status", "updated_at")
     list_filter = ("branch", "development_stage", "status")
     search_fields = ("student_number", "name")

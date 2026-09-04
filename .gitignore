@@ -217,6 +217,7 @@ media/imports/*
 backups/
 disaster_restore_backups/
 artifacts/acceptance/
+artifacts/deployment-load/
 *.sqlite3
 *.xlsx
 *.xls

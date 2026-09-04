@@ -111,7 +111,7 @@ def confirm_import(request: HttpRequest, batch_id: int) -> ImportBatch:
                         action="confirm_import",
                         target_type="ImportBatch",
                         target_id=str(locked_batch.pk),
-                        description=f"确认Excel正式导入：{locked_batch.original_filename}",
+                        description="确认Excel正式导入",
                     )
                 return locked_batch
             except ConfirmImportConflict:

@@ -27,6 +27,7 @@ def bounded_int(
 
 
 def build_gunicorn_command(environment: Mapping[str, str]) -> list[str]:
+    workers = bounded_int(environment, "GUNICORN_WORKERS", 2, minimum=2, maximum=3)
     threads = bounded_int(environment, "GUNICORN_THREADS", 2, minimum=1, maximum=8)
     timeout = bounded_int(environment, "GUNICORN_TIMEOUT", 60, minimum=30, maximum=300)
     graceful_timeout = bounded_int(
@@ -40,7 +41,7 @@ def build_gunicorn_command(environment: Mapping[str, str]) -> list[str]:
         "gunicorn",
         "config.wsgi:application",
         "--bind=0.0.0.0:8000",
-        "--workers=1",
+        f"--workers={workers}",
         "--worker-class=gthread",
         f"--threads={threads}",
         f"--timeout={timeout}",

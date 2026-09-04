@@ -35,6 +35,14 @@ class ContainerWorkflowContractTests(SimpleTestCase):
         self.assertIn("scripts/container_smoke_test.py", self.workflow)
         self.assertIn("severity: CRITICAL", self.workflow)
 
+    def test_workflow_runs_complete_application_gates(self) -> None:
+        self.assertIn("DJANGO_SQLITE_PATH: ${{ github.workspace }}/ci.sqlite3", self.workflow)
+        self.assertNotIn("${{ runner.temp }}", self.workflow)
+        self.assertIn("python manage.py check", self.workflow)
+        self.assertIn("python manage.py makemigrations --check", self.workflow)
+        self.assertIn("Run complete Django test suite", self.workflow)
+        self.assertIn("run: python manage.py test", self.workflow)
+
     def test_all_actions_are_pinned_to_full_commit_sha(self) -> None:
         action_lines = [line.strip() for line in self.workflow.splitlines() if "uses:" in line]
         self.assertGreaterEqual(len(action_lines), 3)

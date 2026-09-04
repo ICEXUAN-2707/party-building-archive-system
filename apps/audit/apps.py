@@ -6,3 +6,6 @@ class AuditConfig(AppConfig):
     name = "apps.audit"
     label = "audit"
     verbose_name = "审计日志"
+
+    def ready(self) -> None:
+        from . import sqlite_pragmas  # noqa: F401

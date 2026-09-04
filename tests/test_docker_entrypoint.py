@@ -7,12 +7,12 @@ from scripts.docker_entrypoint import bounded_int, build_gunicorn_command, main
 
 
 class DockerEntrypointTests(SimpleTestCase):
-    def test_command_keeps_single_worker_and_bounded_defaults(self) -> None:
+    def test_command_uses_two_workers_and_bounded_defaults(self) -> None:
         command = build_gunicorn_command({})
 
         self.assertIn("config.wsgi:application", command)
         self.assertIn("--bind=0.0.0.0:8000", command)
-        self.assertIn("--workers=1", command)
+        self.assertIn("--workers=2", command)
         self.assertIn("--worker-class=gthread", command)
         self.assertIn("--threads=2", command)
         self.assertIn("--timeout=60", command)
@@ -22,6 +22,7 @@ class DockerEntrypointTests(SimpleTestCase):
         command = build_gunicorn_command(
             {
                 "GUNICORN_THREADS": "4",
+                "GUNICORN_WORKERS": "3",
                 "GUNICORN_TIMEOUT": "120",
                 "GUNICORN_GRACEFUL_TIMEOUT": "45",
             }
@@ -30,7 +31,7 @@ class DockerEntrypointTests(SimpleTestCase):
         self.assertIn("--threads=4", command)
         self.assertIn("--timeout=120", command)
         self.assertIn("--graceful-timeout=45", command)
-        self.assertIn("--workers=1", command)
+        self.assertIn("--workers=3", command)
 
     def test_bounded_int_rejects_invalid_or_unsafe_values(self) -> None:
         for environment in (

@@ -46,7 +46,7 @@ class AdminLoginView(LoginView):
             action="admin_login",
             target_type="admin",
             target_id=str(user.pk),
-            description=f"管理员 {user.display_name or user.username} 登录",
+            description="管理员登录成功",
         )
         return response
 
@@ -62,7 +62,7 @@ def admin_logout_view(request):
             action="admin_logout",
             target_type="admin",
             target_id=str(user.pk),
-            description=f"管理员 {user.display_name or user.username} 退出",
+            description="管理员退出登录",
         )
     auth_logout(request)
     return redirect("/")
@@ -90,6 +90,9 @@ def student_login(request: HttpRequest) -> HttpResponse:
                 # 学生端与管理员端身份互斥，避免旧管理员会话泄露后台权限。
                 auth_logout(request)
                 request.session[SESSION_STUDENT_ID_KEY] = student.id
+                from apps.audit.services import record_student_login
+
+                record_student_login(request, student.id)
                 return redirect("students:student_profile")
             form.add_error(None, LOGIN_ERROR_MESSAGE)
         else:

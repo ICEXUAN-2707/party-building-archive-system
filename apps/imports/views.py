@@ -234,7 +234,7 @@ def _create_preview_batch(request: HttpRequest, uploaded_file) -> ImportBatch:
                 action="upload_excel",
                 target_type="ImportBatch",
                 target_id=str(batch.pk),
-                description=f"上传Excel并生成服务端预览：{batch.original_filename}",
+                description="上传Excel并生成服务端预览",
             )
         return batch
     except Exception:

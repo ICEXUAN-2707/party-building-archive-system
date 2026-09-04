@@ -124,7 +124,7 @@ def rollback_import(request: HttpRequest, batch_id: int) -> ImportBatch:
                     action="rollback_import",
                     target_type="ImportBatch",
                     target_id=str(batch.pk),
-                    description=f"回滚最近成功Excel导入：{batch.original_filename}",
+                    description="回滚最近成功Excel导入",
                 )
             return batch
         except RollbackRejected:

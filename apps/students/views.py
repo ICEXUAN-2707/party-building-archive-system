@@ -119,7 +119,7 @@ class AdminStudentDetailView(ViewerOrDataAdminRequiredMixin, DetailView):
             action="view_student_detail",
             target_type="student",
             target_id=str(student.pk),
-            description=f"查看学生 {student.name}（{student.student_number}）详情",
+            description="查看学生档案详情",
         )
         return response
 
