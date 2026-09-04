@@ -23,6 +23,8 @@ jobs:
     name: Container policy and contracts
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      DJANGO_SQLITE_PATH: ${{ runner.temp }}/ci.sqlite3
     steps:
       - name: Checkout tested revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -39,6 +41,14 @@ jobs:
 
       - name: Check repository policy
         run: python scripts/ci_guard.py
+
+      - name: Check Django configuration and migrations
+        run: |
+          python manage.py check
+          python manage.py makemigrations --check
+
+      - name: Run complete Django test suite
+        run: python manage.py test
 
       - name: Run container contract tests
         run: >-

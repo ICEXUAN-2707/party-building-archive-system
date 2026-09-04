@@ -110,6 +110,9 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": env_path("DJANGO_SQLITE_PATH", BASE_DIR / "db.sqlite3"),
+        "OPTIONS": {
+            "timeout": env_int("SQLITE_BUSY_TIMEOUT_MS", 30000) / 1000,
+        },
     }
 }
 
@@ -218,6 +221,9 @@ def validate_production_settings() -> None:
 
     if LOG_LEVEL not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
         problems.append("DJANGO_LOG_LEVEL不是有效日志级别")
+    sqlite_busy_timeout_ms = env_int("SQLITE_BUSY_TIMEOUT_MS", 30000)
+    if not 1000 <= sqlite_busy_timeout_ms <= 120000:
+        problems.append("SQLITE_BUSY_TIMEOUT_MS必须在1000到120000之间")
 
     if problems:
         raise ImproperlyConfigured("生产配置无效：" + "；".join(problems))

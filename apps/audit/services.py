@@ -35,6 +35,19 @@ def record_operation_log(
     )
 
 
+def record_student_login(request, student_id: int) -> OperationLog:
+    """记录学生登录成功事件，只保存内部主键，不保存姓名或学号。"""
+    return OperationLog.objects.create(
+        operator=None,
+        operator_role="student",
+        action="student_login_success",
+        target_type="Student",
+        target_id=str(student_id),
+        description="学生登录成功",
+        ip_address=get_client_ip(request),
+    )
+
+
 def get_client_ip(request) -> str:
     """从请求中提取客户端 IP 地址。
 
