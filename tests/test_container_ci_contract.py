@@ -36,6 +36,8 @@ class ContainerWorkflowContractTests(SimpleTestCase):
         self.assertIn("severity: CRITICAL", self.workflow)
 
     def test_workflow_runs_complete_application_gates(self) -> None:
+        self.assertIn("DJANGO_SQLITE_PATH: ${{ github.workspace }}/ci.sqlite3", self.workflow)
+        self.assertNotIn("${{ runner.temp }}", self.workflow)
         self.assertIn("python manage.py check", self.workflow)
         self.assertIn("python manage.py makemigrations --check", self.workflow)
         self.assertIn("Run complete Django test suite", self.workflow)

@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      DJANGO_SQLITE_PATH: ${{ runner.temp }}/ci.sqlite3
+      DJANGO_SQLITE_PATH: ${{ github.workspace }}/ci.sqlite3
     steps:
       - name: Checkout tested revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
